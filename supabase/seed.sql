@@ -1,0 +1,6 @@
+-- Fixtures are seeded by migration 0006_wc2026_fixtures.sql (the full 2026
+-- World Cup group stage), so they land in cloud deployments via `db push`
+-- too — not just local `db reset`. Nothing to seed here.
+--
+-- To start from a blank fixture list instead, delete migration 0006 (or
+-- `truncate public.matches;`) and add your own matches in Admin → Fixtures.

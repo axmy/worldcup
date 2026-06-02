@@ -1,26 +1,458 @@
 @import "tailwindcss";
 
+/* ───────────────────────── Kickoff design tokens ─────────────────────────
+   Ported from the "Kickoff — World Cup Predictor" design bundle. Dark theme is
+   the default; a [data-theme="light"] override is kept for parity. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --accent: oklch(0.87 0.2 128); /* electric lime */
+  --accent-ink: color-mix(in oklab, oklch(0.87 0.2 128) 32%, #050d06);
+  /* next/font injects the family handles; fall back to system fonts. */
+  --font-display: var(--font-display-next), "Saira Condensed", system-ui, sans-serif;
+  --font-body: var(--font-body-next), "Saira", system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* dark theme (default) */
+:root,
+[data-theme="dark"] {
+  --bg: oklch(0.165 0.012 255);
+  --bg-2: oklch(0.205 0.014 255);
+  --bg-3: oklch(0.255 0.016 255);
+  --bg-hover: oklch(0.3 0.018 255);
+  --line: oklch(0.32 0.016 255);
+  --line-soft: oklch(0.26 0.014 255);
+  --text: oklch(0.97 0.004 255);
+  --text-dim: oklch(0.74 0.01 255);
+  --text-faint: oklch(0.56 0.012 255);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --pos: oklch(0.82 0.17 150);
+  --neg: oklch(0.7 0.19 25);
+  --warn: oklch(0.83 0.16 75);
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+[data-theme="light"] {
+  --bg: oklch(0.975 0.004 255);
+  --bg-2: oklch(1 0 0);
+  --bg-3: oklch(0.965 0.006 255);
+  --bg-hover: oklch(0.93 0.008 255);
+  --line: oklch(0.89 0.008 255);
+  --line-soft: oklch(0.93 0.006 255);
+  --text: oklch(0.22 0.014 255);
+  --text-dim: oklch(0.45 0.014 255);
+  --text-faint: oklch(0.6 0.012 255);
+  --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 10px 30px rgba(20, 24, 40, 0.08);
+  --pos: oklch(0.58 0.15 150);
+  --neg: oklch(0.58 0.2 25);
+  --warn: oklch(0.66 0.16 70);
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html,
+body {
+  min-height: 100%;
+}
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+input,
+select {
+  font-family: inherit;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.display {
+  font-family: var(--font-display);
+}
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes riseIn {
+  from { transform: translateY(9px); }
+  to { transform: none; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes floatY {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-14px) rotate(var(--r, 0deg)); }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+@keyframes authIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes scoreFlip {
+  0% { transform: translateY(8px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+.screen-enter {
+  animation: riseIn 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* ── Interaction classes (hover/focus/active the inline styles can't express) ── */
+.tap {
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tap:active {
+  transform: scale(0.975);
+}
+.lift {
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 0.18s ease, border-color 0.15s ease;
+}
+@media (hover: hover) {
+  .lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--line);
+    box-shadow: var(--shadow);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  transition: filter 0.15s ease, transform 0.12s ease;
+}
+@media (hover: hover) {
+  .btn-accent:hover {
+    filter: brightness(1.08);
+  }
+}
+.btn-accent:active {
+  transform: scale(0.97);
+}
+.btn-accent:disabled {
+  cursor: default;
+}
+.btn-ghost {
+  background: var(--bg-3);
+  color: var(--text);
+  transition: background 0.15s ease;
+}
+@media (hover: hover) {
+  .btn-ghost:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.navitem {
+  transition: color 0.15s ease, background 0.15s ease;
+}
+@media (hover: hover) {
+  .navitem:hover {
+    color: var(--text);
+  }
+}
+
+.step-btn {
+  transition: background 0.12s ease, transform 0.1s ease, color 0.12s ease;
+}
+@media (hover: hover) {
+  .step-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+}
+.step-btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.step-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.row-hover {
+  transition: background 0.14s ease;
+}
+@media (hover: hover) {
+  .row-hover:hover {
+    background: var(--bg-3);
+  }
+}
+
+.chip {
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+@media (hover: hover) {
+  .chip:hover {
+    border-color: var(--line);
+    color: var(--text);
+  }
+}
+
+.field {
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.scorebox {
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.scorebox:focus-within {
+  border-color: var(--accent);
+}
+
+/* ── Auth-specific field styling ── */
+.auth-field {
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+.auth-field::placeholder {
+  color: var(--text-faint);
+}
+.auth-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.auth-cta {
+  background: var(--grad-accent);
+  color: var(--accent-ink);
+  text-transform: uppercase;
+  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 30px color-mix(in oklab, var(--accent) 34%, transparent);
+}
+@media (hover: hover) {
+  .auth-cta:hover {
+    filter: brightness(1.07);
+    box-shadow: 0 12px 38px color-mix(in oklab, var(--accent) 44%, transparent);
+  }
+}
+.auth-cta:active {
+  transform: scale(0.985);
+}
+.auth-cta:disabled {
+  cursor: default;
+}
+.auth-link {
+  transition: color 0.15s ease;
+  color: var(--accent);
+  font-weight: 700;
+}
+@media (hover: hover) {
+  .auth-link:hover {
+    filter: brightness(1.12);
+  }
+}
+.auth-social {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+@media (hover: hover) {
+  .auth-social:hover {
+    background: var(--bg-hover);
+    border-color: var(--line);
+  }
+}
+.auth-show {
+  transition: color 0.15s ease;
+}
+@media (hover: hover) {
+  .auth-show:hover {
+    color: var(--text);
+  }
+}
+
+/* ════════════════════════ Bold & sporty layer ════════════════════════
+   Stadium energy on top of the themeable tokens. Everything derives from
+   --accent / --bg* so the white-label theming still drives the whole look. */
+:root {
+  --grad-accent: linear-gradient(
+    118deg,
+    color-mix(in oklab, var(--accent) 88%, #fff) 0%,
+    var(--accent) 46%,
+    color-mix(in oklab, var(--accent) 72%, #000) 100%
+  );
+  --ring: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  --glow-accent: 0 10px 34px color-mix(in oklab, var(--accent) 36%, transparent);
+}
+
+/* Stadium hero backdrop: an accent glow bleeding from the top + faint turf. */
+.pitch-hero {
+  position: relative;
+  isolation: isolate;
+}
+.pitch-hero::before {
+  content: "";
+  position: absolute;
+  inset: -50% -20% auto -20%;
+  height: 78%;
+  background: radial-gradient(60% 100% at 50% 0%, color-mix(in oklab, var(--accent) 26%, transparent), transparent 72%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Huge condensed headline. */
+.h-hero {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+/* Skewed accent tick used before section/headline labels. */
+.slash {
+  display: inline-block;
+  width: 7px;
+  align-self: stretch;
+  background: var(--grad-accent);
+  border-radius: 3px;
+  transform: skewX(-11deg);
+  box-shadow: var(--glow-accent);
+}
+
+/* Sporty surface: subtle vertical sheen + top hairline highlight. */
+.card-sport {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--bg-2), color-mix(in oklab, var(--bg-2) 86%, var(--bg)));
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+.card-sport::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--text) 14%, transparent), transparent);
+  pointer-events: none;
+}
+
+/* Accent CTA with gradient + glow, for the sporty primary buttons. */
+.btn-sport {
+  background: var(--grad-accent);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  box-shadow: var(--glow-accent);
+  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.2s ease;
+}
+@media (hover: hover) {
+  .btn-sport:hover:not(:disabled) {
+    filter: brightness(1.06);
+    box-shadow: 0 14px 42px color-mix(in oklab, var(--accent) 46%, transparent);
+  }
+}
+.btn-sport:active:not(:disabled) {
+  transform: scale(0.975);
+}
+.btn-sport:disabled {
+  opacity: 0.55;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Lift with a stronger sporty hover. */
+@media (hover: hover) {
+  .lift-sport {
+    transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 0.2s ease, border-color 0.15s ease;
+  }
+  .lift-sport:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+  }
+}
+
+/* Staggered card entrance for lists/grids. */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.stagger > * {
+  animation: cardIn 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.3s; }
+
+/* Responsive card grid: one column on phones, two on tablet/desktop. */
+.wc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 760px) {
+  .wc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+  }
 }

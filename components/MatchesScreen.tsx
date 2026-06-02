@@ -1,0 +1,181 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Match } from "@/lib/types";
+import { Empty, Icon, ScreenHead, SectionLabel, fmtDay, matchStatus, useNow } from "@/components/ui";
+import { MatchCard, type Pred } from "@/components/MatchCard";
+import { PredictSheet } from "@/components/PredictSheet";
+import { LeagueSwitcher, type LeagueOption } from "@/components/LeagueSwitcher";
+
+export type PredMap = Record<string, Pred>;
+
+// Shown on Matches / My Picks when the user hasn't joined any league yet —
+// predictions are per-league, so there's nowhere to predict until they join.
+export function NoLeague() {
+  return (
+    <div style={{ textAlign: "center", padding: "46px 20px", color: "var(--text-faint)" }}>
+      <Icon name="trophy" size={34} style={{ opacity: 0.5 }} />
+      <p style={{ marginTop: 12, fontSize: 14 }}>Join a league to start predicting — your picks are made per league.</p>
+      <Link href="/leagues" className="btn-sport tap" style={{ display: "inline-flex", marginTop: 16, padding: "12px 22px", borderRadius: 12, textDecoration: "none", fontSize: 14.5, alignItems: "center", gap: 8 }}>
+        <Icon name="arrowR" size={17} stroke={2.4} /> Go to Leagues
+      </Link>
+    </div>
+  );
+}
+
+export function Toast({ msg }: { msg: string }) {
+  return (
+    <div
+      className="wc-toast"
+      style={{
+        position: "fixed",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 80,
+        background: "var(--text)",
+        color: "var(--bg)",
+        padding: "12px 20px",
+        borderRadius: 12,
+        fontWeight: 700,
+        fontSize: 14,
+        fontFamily: "var(--font-display)",
+        boxShadow: "0 8px 30px rgba(0,0,0,.4)",
+        animation: "popIn .25s ease both",
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon name="check" size={17} stroke={3} style={{ color: "var(--accent)" }} /> {msg}
+      <style>{`.wc-toast{bottom:90px}@media(min-width:860px){.wc-toast{bottom:28px}}`}</style>
+    </div>
+  );
+}
+
+const FILTERS: [string, string][] = [
+  ["all", "All"],
+  ["open", "Open"],
+  ["live", "Locked"],
+  ["done", "Final"],
+];
+
+export function MatchesScreen({
+  matches,
+  predictions,
+  leagues,
+  activeLeagueId,
+  submissionMode,
+  exactPts,
+  outcomePts,
+}: {
+  matches: Match[];
+  predictions: PredMap;
+  leagues: LeagueOption[];
+  activeLeagueId: string | null;
+  submissionMode: "single" | "multiple";
+  exactPts: number;
+  outcomePts: number;
+}) {
+  const router = useRouter();
+  const now = useNow(1000) ?? Date.now();
+  const [filter, setFilter] = useState("all");
+  const [sheet, setSheet] = useState<Match | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const groups = useMemo(() => {
+    const list = matches.filter((m) => {
+      const s = matchStatus(m, now);
+      if (filter === "open") return s === "open";
+      if (filter === "live") return s === "locked";
+      if (filter === "done") return s === "final";
+      return true;
+    });
+    const byDay: Record<string, Match[]> = {};
+    list.forEach((m) => {
+      const key = new Date(m.kickoff_time).toDateString();
+      (byDay[key] = byDay[key] || []).push(m);
+    });
+    return Object.entries(byDay).sort((x, y) => new Date(x[0]).getTime() - new Date(y[0]).getTime());
+  }, [filter, now, matches]);
+
+  const openCount = matches.filter((m) => matchStatus(m, now) === "open").length;
+
+  function done(msg: string) {
+    setSheet(null);
+    setToast(msg);
+    clearTimeout((window as { __wcToast?: number }).__wcToast);
+    (window as { __wcToast?: number }).__wcToast = window.setTimeout(() => setToast(null), 2400);
+    router.refresh();
+  }
+
+  if (!activeLeagueId) {
+    return (
+      <div className="screen-enter">
+        <ScreenHead title="Matches" />
+        <NoLeague />
+      </div>
+    );
+  }
+
+  return (
+    <div className="screen-enter">
+      <ScreenHead title="Matches" sub={`${openCount} open for predictions`} />
+
+      <LeagueSwitcher leagues={leagues} activeId={activeLeagueId} />
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", paddingBottom: 2 }}>
+        {FILTERS.map(([k, label]) => (
+          <button
+            key={k}
+            className="tap"
+            onClick={() => setFilter(k)}
+            style={{
+              padding: "8px 17px",
+              borderRadius: 99,
+              fontWeight: 800,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+              fontFamily: "var(--font-display)",
+              letterSpacing: ".06em",
+              textTransform: "uppercase",
+              background: filter === k ? "var(--grad-accent)" : "var(--bg-2)",
+              color: filter === k ? "var(--accent-ink)" : "var(--text-dim)",
+              border: "1px solid",
+              borderColor: filter === k ? "transparent" : "var(--line-soft)",
+              boxShadow: filter === k ? "var(--glow-accent)" : "none",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {groups.length === 0 && <Empty icon="cal" text="No matches in this view." />}
+      {groups.map(([day, ms]) => (
+        <div key={day} style={{ marginBottom: 24 }}>
+          <SectionLabel>{fmtDay(new Date(day).getTime())}</SectionLabel>
+          <div className="wc-grid stagger">
+            {ms.map((m) => (
+              <MatchCard key={m.id} match={m} pred={predictions[m.id]} exactPts={exactPts} outcomePts={outcomePts} onOpen={setSheet} />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {sheet && (
+        <PredictSheet
+          match={sheet}
+          pred={predictions[sheet.id]}
+          leagueId={activeLeagueId}
+          submissionMode={submissionMode}
+          onClose={() => setSheet(null)}
+          onDone={done}
+        />
+      )}
+      {toast && <Toast msg={toast} />}
+    </div>
+  );
+}
