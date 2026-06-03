@@ -140,17 +140,16 @@ export function AuthCard({
                 gap: 8,
                 padding: "6px 14px",
                 borderRadius: 99,
-                background: "var(--grad-accent)",
+                background: "var(--accent)",
                 color: "var(--accent-ink)",
-                fontFamily: "var(--font-display)",
-                fontWeight: 900,
+                fontFamily: "var(--font-body)",
+                fontWeight: 700,
                 fontSize: 12,
-                letterSpacing: ".12em",
+                letterSpacing: ".08em",
                 marginBottom: 22,
-                boxShadow: "var(--glow-accent)",
               }}
             >
-              <Icon name="flame" size={15} stroke={2.6} /> SEASON LIVE
+              <Icon name="flame" size={15} stroke={2.6} /> Season live
             </div>
             <h2 className="h-hero" style={{ fontSize: "clamp(44px, 5vw, 62px)", maxWidth: 480 }}>
               {heroHeadline}
@@ -336,10 +335,10 @@ export function AuthCard({
 const ctaStyle: CSSProperties = {
   height: 54,
   borderRadius: 14,
-  fontFamily: "var(--font-display)",
-  fontSize: 18,
-  fontWeight: 900,
-  letterSpacing: ".04em",
+  fontFamily: "var(--font-body)",
+  fontSize: 16.5,
+  fontWeight: 700,
+  letterSpacing: 0,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

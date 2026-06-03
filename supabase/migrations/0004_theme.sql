@@ -7,4 +7,4 @@
 alter table public.app_settings
   add column if not exists theme  text not null default 'dark'
     check (theme in ('dark', 'light')),
-  add column if not exists accent text not null default 'oklch(0.87 0.2 128)';
+  add column if not exists accent text not null default 'oklch(0.58 0.21 264)';

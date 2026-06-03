@@ -228,17 +228,16 @@ export function Chrome({
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
-                    padding: "9px 16px",
-                    borderRadius: 11,
+                    padding: "8px 15px",
+                    borderRadius: 9,
                     textDecoration: "none",
-                    fontFamily: "var(--font-display)",
-                    fontWeight: 800,
+                    fontFamily: "var(--font-body)",
+                    fontWeight: 600,
                     fontSize: 14.5,
-                    letterSpacing: ".02em",
-                    textTransform: "uppercase",
+                    letterSpacing: 0,
                     color: active ? "var(--accent-ink)" : "var(--text-faint)",
-                    background: active ? "var(--grad-accent)" : "transparent",
-                    boxShadow: active ? "var(--glow-accent)" : "none",
+                    background: active ? "var(--accent)" : "transparent",
+                    boxShadow: "none",
                   }}
                 >
                   <Icon name={n.icon} size={17} stroke={2.4} /> {n.label}
@@ -302,7 +301,7 @@ export function Chrome({
             >
               {active && <span aria-hidden style={{ position: "absolute", top: 0, width: 30, height: 3, borderRadius: 99, background: "var(--grad-accent)", boxShadow: "var(--glow-accent)" }} />}
               <Icon name={n.icon} size={22} stroke={active ? 2.6 : 2} />
-              <span className="display" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase" }}>{n.label}<NavHint /></span>
+              <span className="display" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, letterSpacing: 0 }}>{n.label}<NavHint /></span>
             </Link>
           );
         })}

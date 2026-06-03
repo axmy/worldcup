@@ -32,13 +32,14 @@ export type Settings = {
   accent: string;
 };
 
+// Medium/deep hues chosen to pair with white button text (--accent-ink: #fff).
 const ACCENTS: [string, string][] = [
-  ["Lime", "oklch(0.87 0.2 128)"],
-  ["Cyan", "oklch(0.84 0.13 195)"],
-  ["Amber", "oklch(0.85 0.16 85)"],
-  ["Orange", "oklch(0.78 0.17 52)"],
-  ["Pink", "oklch(0.76 0.17 2)"],
-  ["Violet", "oklch(0.76 0.15 300)"],
+  ["Indigo", "oklch(0.58 0.21 264)"],
+  ["Blue", "oklch(0.6 0.17 245)"],
+  ["Violet", "oklch(0.55 0.22 300)"],
+  ["Teal", "oklch(0.6 0.12 200)"],
+  ["Rose", "oklch(0.6 0.22 12)"],
+  ["Emerald", "oklch(0.6 0.15 160)"],
 ];
 
 function StatTile({ big, label, accent }: { big: number; label: string; accent?: boolean }) {

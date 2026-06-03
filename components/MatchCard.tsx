@@ -40,12 +40,12 @@ function CenterCell({ match, status, pred }: { match: Match; status: MatchState;
   if (status === "final" && match.home_score !== null && match.away_score !== null) {
     return (
       <div style={{ textAlign: "center", padding: "0 4px" }}>
-        <div className="h-hero num" style={{ fontSize: 40, lineHeight: 0.9 }}>
+        <div className="score" style={{ fontSize: 42, lineHeight: 1, fontWeight: 700 }}>
           {match.home_score}
-          <span style={{ color: "var(--text-faint)", margin: "0 5px", fontWeight: 700 }}>–</span>
+          <span style={{ color: "var(--text-faint)", margin: "0 5px", fontWeight: 600 }}>–</span>
           {match.away_score}
         </div>
-        <div className="display" style={{ fontSize: 9.5, letterSpacing: ".16em", color: "var(--text-faint)", marginTop: 4, fontWeight: 800 }}>FULL TIME</div>
+        <div className="display" style={{ fontSize: 10, letterSpacing: ".12em", color: "var(--text-faint)", marginTop: 4, fontWeight: 600, textTransform: "uppercase" }}>Full time</div>
       </div>
     );
   }
@@ -63,17 +63,17 @@ function CenterCell({ match, status, pred }: { match: Match; status: MatchState;
             background: "color-mix(in oklab, var(--accent) 16%, transparent)",
             border: "1px solid color-mix(in oklab, var(--accent) 38%, transparent)",
             fontSize: 24,
-            fontWeight: 900,
+            fontWeight: 700,
             lineHeight: 1,
             color: "var(--accent)",
-            fontFamily: "var(--font-display)",
+            fontFamily: "var(--font-score)",
           }}
         >
           {pred[0]}
           <span style={{ opacity: 0.5 }}>–</span>
           {pred[1]}
         </div>
-        <div className="display" style={{ fontSize: 9, letterSpacing: ".14em", color: "var(--text-faint)", marginTop: 5, fontWeight: 800 }}>YOUR PICK</div>
+        <div className="display" style={{ fontSize: 9.5, letterSpacing: ".12em", color: "var(--text-faint)", marginTop: 5, fontWeight: 600, textTransform: "uppercase" }}>Your pick</div>
       </div>
     );
   }
@@ -126,7 +126,7 @@ export function MatchCard({
 
       <div style={{ position: "relative", padding: "13px 15px 14px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span suppressHydrationWarning className="display" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-dim)", letterSpacing: ".04em", textTransform: "uppercase" }}>{fmtKick(kickoffMs)}</span>
+          <span suppressHydrationWarning className="display" style={{ fontSize: 12, fontWeight: 600, color: "var(--text-dim)", letterSpacing: 0 }}>{fmtKick(kickoffMs)}</span>
           <StatusPill status={status} />
         </div>
 
@@ -152,7 +152,7 @@ export function MatchCard({
                   <Icon name="clock" size={14} /> Closes in
                 </span>
               ) : (
-                <span className="display" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 800, color: "var(--accent)", letterSpacing: ".04em", textTransform: "uppercase" }}>
+                <span className="display" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--accent)", letterSpacing: 0 }}>
                   <Icon name="bolt" size={14} stroke={2.6} /> Tap to predict
                 </span>
               )}

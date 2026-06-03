@@ -1,21 +1,23 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { cookies } from "next/headers";
-import { Saira, Saira_Condensed } from "next/font/google";
+import { Inter, Saira_Condensed } from "next/font/google";
 import "./globals.css";
 import { Chrome } from "@/components/Chrome";
 import { createClient } from "@/lib/supabase/server";
 import { getSettingsCached } from "@/lib/data";
 
-const sairaBody = Saira({
+// Clean, modern sans for all UI + headings.
+const fontBody = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-body-next",
 });
-const sairaDisplay = Saira_Condensed({
+// Condensed face reserved for big score numerals only.
+const fontScore = Saira_Condensed({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800", "900"],
-  variable: "--font-display-next",
+  weight: ["600", "700", "800"],
+  variable: "--font-score-next",
 });
 
 // Title follows the configured brand name (white-label).
@@ -58,7 +60,7 @@ export default async function RootLayout({
       : brand?.theme === "light"
         ? "light"
         : "dark";
-  const accent = brand?.accent ?? "oklch(0.87 0.2 128)";
+  const accent = brand?.accent ?? "oklch(0.58 0.21 264)";
 
   let displayName: string | null = null;
   let isAdmin = false;
@@ -77,12 +79,13 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme}
-      className={`${sairaBody.variable} ${sairaDisplay.variable} antialiased`}
+      className={`${fontBody.variable} ${fontScore.variable} antialiased`}
       style={
         {
-          // Per-client accent; --accent-ink is derived for readable text on the accent.
+          // Per-client accent; white ink reads cleanly on the medium/dark accent
+          // palette (admin swatches are curated to work with white text).
           "--accent": accent,
-          "--accent-ink": `color-mix(in oklab, ${accent} 32%, #050d06)`,
+          "--accent-ink": "#ffffff",
         } as CSSProperties
       }
     >
