@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+
+// Uses node:crypto for signature verification, so this must run on Node (not Edge).
+export const runtime = "nodejs";
 
 // Supabase "Send Email" auth hook → Mailngine.
 //
@@ -17,7 +20,7 @@ import { NextResponse } from "next/server";
 //   NEXT_PUBLIC_SUPABASE_URL – used to build verification links
 
 type HookPayload = {
-  user: { email: string };
+  user: { id: string; email: string };
   email_data: {
     token: string;
     token_hash: string;
@@ -118,29 +121,29 @@ export async function POST(request: Request) {
   }
 
   const { subject, html, text } = buildEmail(payload.email_data);
+  const to = payload.user.email;
+  // Stable key so a Supabase retry doesn't trigger a duplicate send in Mailngine.
+  const idempotencyKey = `${payload.user.id}:${payload.email_data.token_hash}`;
 
-  let res: Response;
-  try {
-    res = await fetch("https://api.mailngine.com/v1/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [payload.user.email], subject, html, text }),
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: { http_code: 502, message: `Mailngine request failed: ${e instanceof Error ? e.message : "network error"}` } },
-      { status: 502 },
-    );
-  }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    // Returning the error in Supabase's expected shape surfaces it in logs.
-    return NextResponse.json(
-      { error: { http_code: res.status, message: `Mailngine send failed: ${detail.slice(0, 300)}` } },
-      { status: 502 },
-    );
-  }
+  // Supabase enforces a hard 5s timeout on this hook. Sending the email inline
+  // can blow that budget (cold start + provider latency), so we ACK immediately
+  // and send in the background via after(). Failures land in the function logs;
+  // the user can fall back to the "Resend code" button (60s cooldown).
+  after(async () => {
+    try {
+      const res = await fetch("https://api.mailngine.com/v1/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [to], subject, html, text, idempotency_key: idempotencyKey }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) {
+        console.error(`[send-email] Mailngine ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+      }
+    } catch (e) {
+      console.error("[send-email] Mailngine request failed:", e instanceof Error ? e.message : e);
+    }
+  });
 
   return NextResponse.json({});
 }
