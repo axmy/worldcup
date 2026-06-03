@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, type CSSProperties, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { login, register, verifyEmailOtp, resendEmailOtp, signInWithGoogle } from "@/app/actions";
 import { Brand, Crest, Icon } from "@/components/ui";
@@ -87,6 +87,17 @@ export function AuthCard({
   );
 
   const verifyEmail = state && state.step === "verify" ? state.email : undefined;
+
+  // 60-second cooldown before the user can request a new verification code.
+  const [resendIn, setResendIn] = useState(0);
+  useEffect(() => {
+    if (verifyEmail) setResendIn(60);
+  }, [verifyEmail]);
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const id = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendIn]);
 
   return (
     <div style={{ minHeight: "100dvh", width: "100%", background: "var(--bg)" }}>
@@ -212,17 +223,27 @@ export function AuthCard({
                   </button>
                 </form>
 
-                <form action={resendAction} style={{ marginTop: 16, textAlign: "center" }}>
-                  <input type="hidden" name="email" value={verifyEmail} />
+                <div style={{ marginTop: 16, textAlign: "center" }}>
                   <span style={{ fontSize: 14, color: "var(--text-dim)" }}>Didn&apos;t get it? </span>
-                  <button type="submit" className="auth-link" style={{ fontSize: 14 }}>Resend code</button>
+                  {resendIn > 0 ? (
+                    <span className="num" style={{ fontSize: 14, color: "var(--text-faint)", fontWeight: 600 }}>
+                      Resend in {Math.floor(resendIn / 60)}:{String(resendIn % 60).padStart(2, "0")}
+                    </span>
+                  ) : (
+                    <form action={resendAction} style={{ display: "inline" }}>
+                      <input type="hidden" name="email" value={verifyEmail} />
+                      <button type="submit" className="auth-link" style={{ fontSize: 14 }} onClick={() => setResendIn(60)}>
+                        Resend code
+                      </button>
+                    </form>
+                  )}
                   {resendState && !resendState.error && (
                     <p style={{ fontSize: 12.5, color: "var(--pos)", marginTop: 6 }}>New code sent.</p>
                   )}
                   {resendState?.error && (
                     <p style={{ fontSize: 12.5, color: "var(--neg)", marginTop: 6 }}>{resendState.error}</p>
                   )}
-                </form>
+                </div>
               </>
             ) : (
               // ── Sign in / sign up ──

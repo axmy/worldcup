@@ -42,6 +42,14 @@ export async function register(formData: FormData): Promise<RegisterResult> {
   });
   if (error) return { error: error.message };
 
+  // Anti-enumeration: when the email is already registered, Supabase returns an
+  // obfuscated user with an empty `identities` array and sends NO email. Detect
+  // that and block it, instead of stranding the user on a verify screen waiting
+  // for a code that never arrives.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    return { error: "An account with this email already exists — try signing in instead." };
+  }
+
   // With email confirmation on, there's no session yet — go verify the OTP.
   if (!data.session) return { step: "verify", email };
   redirect("/matches");
