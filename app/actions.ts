@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -220,20 +220,49 @@ export async function deleteLeague(formData: FormData) {
 
 // ---------------- Admin ----------------
 
-export async function createMatch(formData: FormData) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("matches").insert({
+// A fixture's submission window: an optional "opens at" and a required "closes
+// at" (the deadline), both absolute datetimes. Close is stored as a
+// fixed_datetime deadline so the DB trigger computes submission_deadline from it.
+function matchWindowFields(formData: FormData) {
+  const open = String(formData.get("submission_open") ?? "").trim();
+  const close = String(formData.get("submission_close") ?? "").trim();
+  if (!close) throw new Error("A submission close time (deadline) is required.");
+  const closeIso = new Date(close).toISOString();
+  return {
     home_team: String(formData.get("home_team")),
     away_team: String(formData.get("away_team")),
     kickoff_time: new Date(String(formData.get("kickoff_time"))).toISOString(),
-    deadline_type: String(formData.get("deadline_type")),
-    deadline_value: String(formData.get("deadline_value")),
-    // submission_deadline is computed by the DB trigger; send a placeholder.
-    submission_deadline: new Date().toISOString(),
+    submission_open: open ? new Date(open).toISOString() : null,
+    deadline_type: "fixed_datetime",
+    deadline_value: closeIso,
+  };
+}
+
+export async function createMatch(formData: FormData) {
+  const supabase = await createClient();
+  const fields = matchWindowFields(formData);
+  const { error } = await supabase.from("matches").insert({
+    ...fields,
+    // submission_deadline is recomputed by the DB trigger; send a placeholder.
+    submission_deadline: fields.deadline_value,
   });
   if (error) throw new Error(error.message);
+  updateTag("matches");
   revalidatePath("/admin");
   revalidatePath("/matches");
+  revalidatePath("/picks");
+}
+
+export async function updateMatch(formData: FormData) {
+  const matchId = String(formData.get("match_id"));
+  const supabase = await createClient();
+  // The DB trigger recomputes submission_deadline from deadline_type/value.
+  const { error } = await supabase.from("matches").update(matchWindowFields(formData)).eq("id", matchId);
+  if (error) throw new Error(error.message);
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
 }
 
 export async function updateResult(formData: FormData) {
@@ -251,8 +280,11 @@ export async function updateResult(formData: FormData) {
     .eq("id", matchId);
   if (error) throw new Error(error.message);
   // Entering a result fires the scoring trigger automatically.
+  updateTag("matches");
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
 }
 
 export async function deleteMatch(formData: FormData) {
@@ -260,8 +292,10 @@ export async function deleteMatch(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("matches").delete().eq("id", matchId);
   if (error) throw new Error(error.message);
+  updateTag("matches");
   revalidatePath("/admin");
   revalidatePath("/matches");
+  revalidatePath("/picks");
 }
 
 export async function updateSettings(formData: FormData) {
@@ -282,5 +316,7 @@ export async function updateSettings(formData: FormData) {
     })
     .eq("id", 1);
   if (error) throw new Error(error.message);
+  updateTag("settings");
   revalidatePath("/admin");
+  revalidatePath("/", "layout");
 }

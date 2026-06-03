@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import { LeaderboardScreen } from "@/components/LeaderboardScreen";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import type { LeaderboardRow } from "@/lib/types";
@@ -9,9 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function LeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getUserId(supabase);
 
   // RLS only returns the league if the caller is a member (or admin).
   const { data: league } = await supabase
@@ -30,7 +28,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
   return (
     <LeaderboardScreen
       board={board}
-      meId={user?.id ?? ""}
+      meId={userId ?? ""}
       title={league.name}
       subtitle={`${board.length} member${board.length === 1 ? "" : "s"}`}
       header={<LeagueHeader leagueId={league.id} joinCode={league.join_code} />}

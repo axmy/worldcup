@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
+import { cookies } from "next/headers";
 import { Saira, Saira_Condensed } from "next/font/google";
 import "./globals.css";
 import { Chrome } from "@/components/Chrome";
 import { createClient } from "@/lib/supabase/server";
+import { getSettingsCached } from "@/lib/data";
 
 const sairaBody = Saira({
   subsets: ["latin"],
@@ -18,9 +20,8 @@ const sairaDisplay = Saira_Condensed({
 
 // Title follows the configured brand name (white-label).
 export async function generateMetadata(): Promise<Metadata> {
-  const supabase = await createClient();
-  const { data } = await supabase.from("app_settings").select("brand_name").eq("id", 1).single();
-  const name = data?.brand_name ?? "Kickoff";
+  const settings = await getSettingsCached();
+  const name = settings?.brand_name ?? "Kickoff";
   return {
     title: `${name} — Score Predictor`,
     description: "Predict the score of every match before the whistle blows.",
@@ -39,26 +40,33 @@ export default async function RootLayout({
   // Fetch the signed-in user's chrome data (name, admin flag, points) once for
   // the header/nav. Null on the auth screens, which Chrome renders full-bleed.
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [{ data: claimsData }, brand] = await Promise.all([
+    supabase.auth.getClaims(),
+    getSettingsCached(),
+  ]);
+  const claims = claimsData?.claims as { sub?: string; email?: string } | undefined;
+  const userId = claims?.sub ?? null;
+  const email = claims?.email ?? null;
 
-  const { data: brand } = await supabase
-    .from("app_settings")
-    .select("brand_name, brand_tagline, theme, accent")
-    .eq("id", 1)
-    .single();
-
-  const theme = brand?.theme === "light" ? "light" : "dark";
+  // Theme: a per-user choice (cookie set from the account menu) overrides the
+  // admin's global default. Read server-side so <html data-theme> is correct on
+  // first paint — no flash, no hydration mismatch.
+  const themePref = (await cookies()).get("theme_pref")?.value;
+  const theme: "dark" | "light" =
+    themePref === "light" || themePref === "dark"
+      ? themePref
+      : brand?.theme === "light"
+        ? "light"
+        : "dark";
   const accent = brand?.accent ?? "oklch(0.87 0.2 128)";
 
   let displayName: string | null = null;
   let isAdmin = false;
   let points = 0;
-  if (user) {
+  if (userId) {
     const [{ data: profile }, { data: board }] = await Promise.all([
-      supabase.from("profiles").select("display_name, is_admin").eq("id", user.id).single(),
-      supabase.from("leaderboard").select("total_points").eq("user_id", user.id).single(),
+      supabase.from("profiles").select("display_name, is_admin").eq("id", userId).single(),
+      supabase.from("leaderboard").select("total_points").eq("user_id", userId).single(),
     ]);
     displayName = profile?.display_name ?? null;
     isAdmin = !!profile?.is_admin;
@@ -80,10 +88,12 @@ export default async function RootLayout({
     >
       <body>
         <Chrome
-          signedIn={!!user}
+          signedIn={!!userId}
           displayName={displayName}
+          email={email}
           isAdmin={isAdmin}
           points={points}
+          theme={theme}
           brandName={brand?.brand_name ?? "Kickoff"}
           brandTagline={brand?.brand_tagline ?? "WC26 · Predictor"}
         >

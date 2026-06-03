@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import { LeaguesScreen } from "@/components/LeaguesScreen";
 import type { LeagueSummary } from "@/lib/types";
 
@@ -17,15 +17,13 @@ type MembershipRow = {
 
 export default async function LeaguesPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = (await getUserId(supabase))!;
 
   // Leagues I'm a member of, with each league's total member count.
   const { data } = await supabase
     .from("league_members")
     .select("leagues(id, name, join_code, created_by, created_at, league_members(count))")
-    .eq("user_id", user!.id)
+    .eq("user_id", userId)
     .order("joined_at", { ascending: true });
 
   const leagues: LeagueSummary[] = ((data as MembershipRow[] | null) ?? [])

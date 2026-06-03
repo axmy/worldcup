@@ -109,9 +109,11 @@ export function PredictSheet({
         {readOnly && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--bg-3)", borderRadius: 12, margin: "6px 0 4px", fontSize: 13, color: "var(--text-dim)" }}>
             <Icon name="lock" size={15} />{" "}
-            {status !== "open"
-              ? "Predictions closed — this is your locked pick."
-              : "This pool allows a single submission — your pick is locked."}
+            {status === "upcoming"
+              ? "Predictions haven't opened for this match yet."
+              : status !== "open"
+                ? "Predictions closed — this is your locked pick."
+                : "This pool allows a single submission — your pick is locked."}
           </div>
         )}
 

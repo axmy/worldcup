@@ -1,26 +1,25 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
+import { getMatchesCached, getSettingsCached } from "@/lib/data";
 import { AdminScreen, type Settings } from "@/components/AdminScreen";
-import type { LeaderboardRow, LeagueSummary, Match } from "@/lib/types";
+import type { LeaderboardRow, LeagueSummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = (await getUserId(supabase))!;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("is_admin")
-    .eq("id", user!.id)
+    .eq("id", userId)
     .single();
   if (!profile?.is_admin) redirect("/matches");
 
-  const [{ data: matches }, { data: settings }, { data: players }, { data: leaguesRaw }] = await Promise.all([
-    supabase.from("matches").select("*").order("kickoff_time"),
-    supabase.from("app_settings").select("*").eq("id", 1).single(),
+  const [matches, settings, { data: players }, { data: leaguesRaw }] = await Promise.all([
+    getMatchesCached(),
+    getSettingsCached(),
     supabase.from("leaderboard").select("*").order("total_points", { ascending: false }),
     supabase
       .from("leagues")
@@ -42,7 +41,7 @@ export default async function AdminPage() {
 
   return (
     <AdminScreen
-      matches={(matches as Match[] | null) ?? []}
+      matches={matches}
       settings={{
         tournament_timezone: s.tournament_timezone ?? "Indian/Maldives",
         points_exact: s.points_exact ?? 3,

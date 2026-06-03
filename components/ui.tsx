@@ -88,6 +88,20 @@ const ICONS: Record<string, ReactNode> = {
       <line x1="18" y1="6" x2="6" y2="18" />
     </>
   ),
+  moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <polyline points="9 16 4 12 9 8" />
+      <line x1="4" y1="12" x2="15" y2="12" />
+    </>
+  ),
   cal: (
     <>
       <rect x="3.5" y="5" width="17" height="16" rx="2" />
@@ -339,14 +353,17 @@ export function Countdown({
 }
 
 /* ── Status ── */
-export type MatchState = "open" | "locked" | "final";
+export type MatchState = "upcoming" | "open" | "locked" | "final";
 export function matchStatus(match: Match, now: number): MatchState {
   if (match.home_score !== null && match.away_score !== null) return "final";
   if (now >= new Date(match.submission_deadline).getTime()) return "locked";
+  // Not open yet: an explicit window start that's still in the future.
+  if (match.submission_open && now < new Date(match.submission_open).getTime()) return "upcoming";
   return "open";
 }
 export function StatusPill({ status }: { status: MatchState }) {
   const map = {
+    upcoming: { label: "SOON", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "clock", glow: false },
     open: { label: "OPEN", c: "var(--accent-ink)", bg: "var(--grad-accent)", icon: "bolt", glow: true },
     locked: { label: "LOCKED", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "lock", glow: false },
     final: { label: "FINAL", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "check", glow: false },

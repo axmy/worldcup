@@ -1,10 +1,144 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useLinkStatus } from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { signOut } from "@/app/actions";
 import { Avatar, Brand, Icon } from "@/components/ui";
+
+// Subtle pending dot: only shows if the tapped link's navigation takes a beat
+// (prefetch not yet ready), giving immediate feedback that the tap registered.
+function NavHint() {
+  const { pending } = useLinkStatus();
+  return <span aria-hidden className={`link-hint${pending ? " is-pending" : ""}`} />;
+}
+
+// Avatar click opens this menu (it used to log the user out instantly). Shows
+// who's signed in, a personal dark/light theme choice, and an explicit Log out.
+function AccountMenu({
+  name,
+  email,
+  points,
+  theme,
+}: {
+  name: string;
+  email: string | null;
+  points: number;
+  theme: "dark" | "light";
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState<"dark" | "light">(theme);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Per-user preference: persisted in a cookie the server layout reads to set
+  // <html data-theme>. Apply instantly on the client, then refresh so SSR agrees.
+  function chooseTheme(next: "dark" | "light") {
+    if (next === pick) return;
+    setPick(next);
+    document.documentElement.dataset.theme = next;
+    document.cookie = `theme_pref=${next}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        className="tap"
+        aria-label="Account menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        style={{ borderRadius: "50%", display: "grid", placeItems: "center" }}
+      >
+        <Avatar name={name} size={36} isMe />
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
+          <div
+            role="menu"
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "calc(100% + 12px)",
+              zIndex: 51,
+              width: 250,
+              background: "var(--bg-2)",
+              border: "1px solid var(--line)",
+              borderRadius: 16,
+              boxShadow: "var(--shadow)",
+              overflow: "hidden",
+              animation: "popIn .16s ease both",
+            }}
+          >
+            {/* Identity */}
+            <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "14px 15px" }}>
+              <Avatar name={name} size={42} isMe />
+              <div style={{ minWidth: 0 }}>
+                <div className="display" style={{ fontSize: 15, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+                {email && <div style={{ fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{email}</div>}
+                <div className="num" style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 700, marginTop: 1 }}>{points} pts</div>
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: "var(--line-soft)" }} />
+
+            {/* Theme */}
+            <div style={{ padding: "12px 15px" }}>
+              <div className="display" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 8 }}>Theme</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 4, background: "var(--bg-3)", borderRadius: 11 }}>
+                {(["dark", "light"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    className="tap"
+                    onClick={() => chooseTheme(opt)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "8px",
+                      borderRadius: 8,
+                      fontFamily: "var(--font-display)",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      textTransform: "capitalize",
+                      background: pick === opt ? "var(--accent)" : "transparent",
+                      color: pick === opt ? "var(--accent-ink)" : "var(--text-dim)",
+                    }}
+                  >
+                    <Icon name={opt === "dark" ? "moon" : "sun"} size={14} stroke={2.4} /> {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: "var(--line-soft)" }} />
+
+            {/* Log out */}
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="row-hover tap"
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "13px 15px", color: "var(--neg)", fontSize: 14, fontWeight: 700, fontFamily: "var(--font-display)" }}
+              >
+                <Icon name="logout" size={17} stroke={2.4} /> Log out
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 type NavItem = { href: string; label: string; icon: string; adminOnly?: boolean };
 const NAV: NavItem[] = [
@@ -17,16 +151,20 @@ const NAV: NavItem[] = [
 export function Chrome({
   signedIn,
   displayName,
+  email,
   isAdmin,
   points,
+  theme,
   brandName,
   brandTagline,
   children,
 }: {
   signedIn: boolean;
   displayName: string | null;
+  email: string | null;
   isAdmin: boolean;
   points: number;
+  theme: "dark" | "light";
   brandName: string;
   brandTagline: string;
   children: ReactNode;
@@ -104,6 +242,7 @@ export function Chrome({
                   }}
                 >
                   <Icon name={n.icon} size={17} stroke={2.4} /> {n.label}
+                  <NavHint />
                 </Link>
               );
             })}
@@ -114,11 +253,7 @@ export function Chrome({
               <div className="display" style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>{name}</div>
               <div className="num" style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>{points} pts</div>
             </div>
-            <form action={signOut}>
-              <button className="tap" title="Sign out" style={{ borderRadius: "50%", display: "grid", placeItems: "center" }}>
-                <Avatar name={name} size={36} isMe />
-              </button>
-            </form>
+            <AccountMenu name={name} email={email} points={points} theme={theme} />
           </div>
         </div>
       </header>
@@ -167,7 +302,7 @@ export function Chrome({
             >
               {active && <span aria-hidden style={{ position: "absolute", top: 0, width: 30, height: 3, borderRadius: 99, background: "var(--grad-accent)", boxShadow: "var(--glow-accent)" }} />}
               <Icon name={n.icon} size={22} stroke={active ? 2.6 : 2} />
-              <span className="display" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase" }}>{n.label}</span>
+              <span className="display" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase" }}>{n.label}<NavHint /></span>
             </Link>
           );
         })}

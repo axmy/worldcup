@@ -1,4 +1,7 @@
-export type DeadlineType = "minutes_before_kickoff" | "fixed_time_of_day";
+export type DeadlineType =
+  | "minutes_before_kickoff"
+  | "fixed_time_of_day"
+  | "fixed_datetime";
 
 export type Match = {
   id: string;
@@ -7,6 +10,8 @@ export type Match = {
   kickoff_time: string;
   deadline_type: DeadlineType;
   deadline_value: string;
+  // When submissions open. Null = open immediately (legacy fixtures).
+  submission_open: string | null;
   submission_deadline: string;
   home_score: number | null;
   away_score: number | null;
@@ -40,3 +45,17 @@ export type League = {
 
 // A league plus its member count, as shown in lists.
 export type LeagueSummary = League & { member_count: number };
+
+// The single app_settings row (white-label config + scoring rules).
+export type AppSettings = {
+  tournament_timezone: string;
+  points_exact: number;
+  points_outcome: number;
+  submission_mode: "single" | "multiple";
+  brand_name: string;
+  brand_tagline: string;
+  login_headline: string;
+  login_subtitle: string;
+  theme: "dark" | "light";
+  accent: string;
+};

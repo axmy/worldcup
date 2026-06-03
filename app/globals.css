@@ -55,6 +55,11 @@
 html,
 body {
   min-height: 100%;
+  /* Decorative glows (.pitch-hero) bleed past the edges; clip the horizontal
+     overflow so they can't push the page wider than the viewport and leave a
+     gap on either side of the sticky header on mobile. `clip` (not `hidden`)
+     avoids turning the body into a scroll container, so sticky still works. */
+  overflow-x: clip;
 }
 body {
   font-family: var(--font-body);
@@ -337,7 +342,7 @@ select {
 .pitch-hero::before {
   content: "";
   position: absolute;
-  inset: -50% -20% auto -20%;
+  inset: -50% 0 auto 0;
   height: 78%;
   background: radial-gradient(60% 100% at 50% 0%, color-mix(in oklab, var(--accent) 26%, transparent), transparent 72%);
   z-index: -1;
@@ -451,8 +456,55 @@ select {
   }
 }
 
+/* Loading skeleton shimmer. */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.skltn {
+  background: linear-gradient(
+    90deg,
+    var(--bg-3) 0%,
+    color-mix(in oklab, var(--bg-hover) 70%, var(--bg-3)) 50%,
+    var(--bg-3) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Inline nav pending hint (useLinkStatus): a fixed-size dot that only appears
+   if the tapped link's navigation actually takes a moment, so fast transitions
+   don't flash. Reserves its space to avoid layout shift. */
+.link-hint {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  visibility: hidden;
+}
+.link-hint.is-pending {
+  visibility: visible;
+  animation: hintIn 200ms ease 120ms forwards, hintPulse 1s ease-in-out 120ms infinite;
+}
+@keyframes hintIn {
+  to { opacity: 0.9; }
+}
+@keyframes hintPulse {
+  50% { opacity: 0.3; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
+  }
+  .skltn,
+  .link-hint.is-pending {
+    animation: none !important;
+  }
+  .link-hint.is-pending {
+    opacity: 0.9;
+    visibility: visible;
   }
 }

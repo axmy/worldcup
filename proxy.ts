@@ -27,9 +27,11 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() refreshes the session when needed (via getSession) but verifies
+  // the JWT locally with asymmetric signing keys — no auth-server round-trip on
+  // every navigation. proxy runs on each request, so this is the hot path.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   const isAuthPage = pathname === "/login" || pathname === "/register";
@@ -59,7 +61,7 @@ export async function proxy(request: NextRequest) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("must_change_password")
-      .eq("id", user.id)
+      .eq("id", user.sub)
       .single();
     if (profile?.must_change_password && !isChangePw) {
       const url = request.nextUrl.clone();

@@ -97,13 +97,19 @@ export function MatchCard({
   outcomePts: number;
   onOpen: (m: Match) => void;
 }) {
-  const now = useNow(1000) ?? new Date(match.submission_deadline).getTime() - 1; // treat as open pre-mount
+  // Pre-mount fallback: a moment before the window start (or deadline) so the
+  // first render matches what the status will settle to, avoiding a flash.
+  const fallbackNow = (match.submission_open
+    ? new Date(match.submission_open).getTime()
+    : new Date(match.submission_deadline).getTime()) - 1;
+  const now = useNow(1000) ?? fallbackNow;
   const status = matchStatus(match, now);
   const pts = status === "final" && pred && match.home_score !== null && match.away_score !== null
     ? scorePred(pred, [match.home_score, match.away_score], exactPts, outcomePts)
     : null;
-  const clickable = status !== "final" || !!pred;
+  const clickable = status !== "upcoming" && (status !== "final" || !!pred);
   const deadlineMs = new Date(match.submission_deadline).getTime();
+  const openMs = match.submission_open ? new Date(match.submission_open).getTime() : 0;
   const kickoffMs = new Date(match.kickoff_time).getTime();
   const homeC = teamColor(match.home_team);
   const awayC = teamColor(match.away_team);
@@ -131,6 +137,14 @@ export function MatchCard({
         </div>
 
         <div style={{ marginTop: 13, paddingTop: 11, borderTop: "1px solid var(--line-soft)", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 24 }}>
+          {status === "upcoming" && (
+            <>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-faint)" }}>
+                <Icon name="clock" size={14} /> Predictions open in
+              </span>
+              <Countdown to={openMs} style={{ fontSize: 13.5 }} />
+            </>
+          )}
           {status === "open" && (
             <>
               {pred ? (

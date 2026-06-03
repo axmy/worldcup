@@ -27,3 +27,14 @@ export async function createClient() {
     },
   );
 }
+
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
+
+// Verified user id straight from the JWT. With asymmetric signing keys this is
+// a local verification (no round-trip to the auth server) — much faster than
+// getUser() on every navigation. Falls back to a network call only for legacy
+// symmetric secrets. Returns null when not signed in.
+export async function getUserId(supabase: ServerClient): Promise<string | null> {
+  const { data } = await supabase.auth.getClaims();
+  return (data?.claims?.sub as string | undefined) ?? null;
+}

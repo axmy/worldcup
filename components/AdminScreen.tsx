@@ -3,7 +3,7 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { LeaderboardRow, LeagueSummary, Match } from "@/lib/types";
-import { createMatch, updateResult, deleteMatch, updateSettings, createLeague, deleteLeague } from "@/app/actions";
+import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, createLeague, deleteLeague } from "@/app/actions";
 import {
   Avatar,
   Countdown,
@@ -57,6 +57,7 @@ export function AdminScreen({ matches, settings, players, leagues }: { matches: 
   const now = useNow(1000) ?? Date.now();
   const [tab, setTab] = useState<"fixtures" | "results" | "leagues" | "players" | "settings">("fixtures");
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Match | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const openN = matches.filter((m) => matchStatus(m, now) === "open").length;
@@ -100,20 +101,29 @@ export function AdminScreen({ matches, settings, players, leagues }: { matches: 
         ))}
       </div>
 
-      {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onDeleted={() => flash("Fixture deleted")} />}
+      {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onEdit={setEditing} onDeleted={() => flash("Fixture deleted")} />}
       {tab === "results" && <Results matches={matches} now={now} onPublished={() => flash("Result published — players scored")} />}
       {tab === "leagues" && <Leagues leagues={leagues} onCreated={() => flash("League created")} onDeleted={() => flash("League deleted")} />}
       {tab === "players" && <Players players={players} />}
       {tab === "settings" && <SettingsForm settings={settings} onSaved={() => flash("Settings saved")} />}
 
-      {creating && <CreateMatchSheet onClose={() => setCreating(false)} onCreated={() => { setCreating(false); flash("Fixture published"); }} />}
+      {(creating || editing) && (
+        <MatchSheet
+          match={editing}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSaved={() => { setCreating(false); setEditing(null); flash(editing ? "Fixture updated" : "Fixture published"); }}
+        />
+      )}
       {toast && <Toast msg={toast} />}
     </div>
   );
 }
 
 /* ── FIXTURES ── */
-function Fixtures({ matches, now, onNew, onDeleted }: { matches: Match[]; now: number; onNew: () => void; onDeleted: () => void }) {
+const fmtWindow = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+function Fixtures({ matches, now, onNew, onEdit, onDeleted }: { matches: Match[]; now: number; onNew: () => void; onEdit: (m: Match) => void; onDeleted: () => void }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -150,14 +160,21 @@ function Fixtures({ matches, now, onNew, onDeleted }: { matches: Match[]; now: n
                 <StatusPill status={status} />
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--text-faint)" }}>
-                <span suppressHydrationWarning>
-                  Kickoff {fmtKick(new Date(m.kickoff_time).getTime())} · Deadline{" "}
-                  {new Date(m.submission_deadline).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                <span suppressHydrationWarning style={{ minWidth: 0, lineHeight: 1.5 }}>
+                  Kickoff {fmtKick(new Date(m.kickoff_time).getTime())}
+                  <br />
+                  Opens {m.submission_open ? fmtWindow(m.submission_open) : "immediately"} · Closes {fmtWindow(m.submission_deadline)}
                   {status === "open" && <> · <Countdown to={deadlineMs} prefix="closes in " style={{ fontSize: 11.5 }} /></>}
+                  {status === "upcoming" && m.submission_open && <> · <Countdown to={new Date(m.submission_open).getTime()} prefix="opens in " style={{ fontSize: 11.5 }} /></>}
                 </span>
-                <button className="chip tap" onClick={() => del(m.id)} title="Delete fixture" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--line-soft)", color: "var(--neg)", fontSize: 12 }}>
-                  <Icon name="trash" size={13} /> Delete
-                </button>
+                <span style={{ display: "inline-flex", gap: 6, flexShrink: 0 }}>
+                  <button className="chip tap" onClick={() => onEdit(m)} title="Edit fixture" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--line-soft)", color: "var(--text-dim)", fontSize: 12 }}>
+                    <Icon name="cog" size={13} /> Edit
+                  </button>
+                  <button className="chip tap" onClick={() => del(m.id)} title="Delete fixture" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--line-soft)", color: "var(--neg)", fontSize: 12 }}>
+                    <Icon name="trash" size={13} />
+                  </button>
+                </span>
               </div>
             </div>
           );
@@ -483,12 +500,19 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
   );
 }
 
-/* ── CREATE MATCH SHEET ── */
-function CreateMatchSheet({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+/* ── CREATE / EDIT MATCH SHEET ── */
+// ISO timestamp → value for a <input type="datetime-local"> (local wall time).
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function MatchSheet({ match, onClose, onSaved }: { match: Match | null; onClose: () => void; onSaved: () => void }) {
   const router = useRouter();
-  const [home, setHome] = useState("");
-  const [away, setAway] = useState("");
-  const [deadlineType, setDeadlineType] = useState("minutes_before_kickoff");
+  const editing = !!match;
+  const [home, setHome] = useState(match?.home_team ?? "");
+  const [away, setAway] = useState(match?.away_team ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const valid = home.trim() && away.trim() && home.trim().toLowerCase() !== away.trim().toLowerCase();
@@ -497,11 +521,16 @@ function CreateMatchSheet({ onClose, onCreated }: { onClose: () => void; onCreat
     setError(null);
     startTransition(async () => {
       try {
-        await createMatch(formData);
+        if (match) {
+          formData.set("match_id", match.id);
+          await updateMatch(formData);
+        } else {
+          await createMatch(formData);
+        }
         router.refresh();
-        onCreated();
+        onSaved();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not create fixture.");
+        setError(e instanceof Error ? e.message : "Could not save fixture.");
       }
     });
   }
@@ -511,7 +540,7 @@ function CreateMatchSheet({ onClose, onCreated }: { onClose: () => void; onCreat
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "var(--bg-2)", borderRadius: "24px 24px 0 0", border: "1px solid var(--line)", borderBottom: "none", padding: "10px 18px 26px", animation: "slideUp .32s cubic-bezier(.2,.8,.25,1)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ width: 38, height: 4, borderRadius: 99, background: "var(--line)", margin: "4px auto 16px" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <h2 className="display" style={{ fontSize: 20, fontWeight: 800 }}>New fixture</h2>
+          <h2 className="display" style={{ fontSize: 20, fontWeight: 800 }}>{editing ? "Edit fixture" : "New fixture"}</h2>
           <button className="btn-ghost tap" onClick={onClose} style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", color: "var(--text-dim)" }}>
             <Icon name="x" size={18} />
           </button>
@@ -534,28 +563,25 @@ function CreateMatchSheet({ onClose, onCreated }: { onClose: () => void; onCreat
           {!valid && (home || away) && <p style={{ color: "var(--neg)", fontSize: 12.5, textAlign: "center" }}>Enter two different team names.</p>}
 
           <div><label style={lab}>KICKOFF (LOCAL TIME)</label>
-            <input name="kickoff_time" type="datetime-local" required style={sel} />
+            <input name="kickoff_time" type="datetime-local" required defaultValue={toLocalInput(match?.kickoff_time)} style={sel} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12 }}>
-            <div><label style={lab}>DEADLINE RULE</label>
-              <select name="deadline_type" value={deadlineType} onChange={(e) => setDeadlineType(e.target.value)} style={sel}>
-                <option value="minutes_before_kickoff">Minutes before kickoff</option>
-                <option value="fixed_time_of_day">Fixed time of day</option>
-              </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><label style={lab}>SUBMISSIONS OPEN</label>
+              <input name="submission_open" type="datetime-local" defaultValue={toLocalInput(match?.submission_open)} style={sel} />
             </div>
-            <div><label style={lab}>VALUE</label>
-              <input name="deadline_value" required placeholder={deadlineType === "fixed_time_of_day" ? "22:00" : "75"} style={sel} />
+            <div><label style={lab}>SUBMISSIONS CLOSE</label>
+              <input name="submission_close" type="datetime-local" required defaultValue={toLocalInput(match?.submission_deadline)} style={sel} />
             </div>
           </div>
           <p style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
-            e.g. <code>75</code> = lock 75 min before kickoff, or <code>22:00</code> = lock at 10pm (tournament timezone) on the match date.
+            Players can submit and edit picks only between <b>open</b> and <b>close</b>. Leave <b>open</b> blank to accept picks immediately. <b>Close</b> is the prediction deadline.
           </p>
 
           {error && <p style={{ color: "var(--neg)", fontSize: 12.5, textAlign: "center" }}>{error}</p>}
 
           <button type="submit" className="btn-sport tap" disabled={!valid || isPending} style={{ width: "100%", padding: "14px", borderRadius: 13, fontFamily: "var(--font-display)", fontSize: 15.5, opacity: valid && !isPending ? 1 : 0.5 }}>
-            {isPending ? "Publishing…" : "Publish fixture"}
+            {isPending ? "Saving…" : editing ? "Save changes" : "Publish fixture"}
           </button>
         </form>
       </div>
