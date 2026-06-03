@@ -2,8 +2,22 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+
+// The app's public origin for building redirect URLs (OAuth callback, password
+// reset link). Prefer an explicit NEXT_PUBLIC_SITE_URL, then the request Origin,
+// then Vercel's forwarded host — never falls back to localhost in production.
+async function siteOrigin() {
+  const h = await headers();
+  const forwardedHost = h.get("x-forwarded-host") ?? h.get("host");
+  const forwardedProto = h.get("x-forwarded-proto") ?? "https";
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
+    h.get("origin") ??
+    (forwardedHost ? `${forwardedProto}://${forwardedHost}` : "http://127.0.0.1:3000")
+  );
+}
 
 // ---------------- Auth ----------------
 
@@ -69,17 +83,7 @@ export async function login(formData: FormData) {
 // which exchanges the code for a session.
 export async function signInWithGoogle() {
   const supabase = await createClient();
-
-  // Resolve the callback origin from the real request host so production never
-  // falls back to localhost. Prefer an explicit NEXT_PUBLIC_SITE_URL, then the
-  // request Origin, then Vercel's forwarded host headers.
-  const h = await headers();
-  const forwardedHost = h.get("x-forwarded-host") ?? h.get("host");
-  const forwardedProto = h.get("x-forwarded-proto") ?? "https";
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
-    h.get("origin") ??
-    (forwardedHost ? `${forwardedProto}://${forwardedHost}` : "http://127.0.0.1:3000");
+  const origin = await siteOrigin();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -87,6 +91,43 @@ export async function signInWithGoogle() {
   });
   if (error) throw new Error(error.message);
   if (data.url) redirect(data.url);
+}
+
+// Email a password-reset link to accounts that signed up with a password.
+// The link routes through /auth/callback (which exchanges the code for a
+// short-lived recovery session) and lands on /reset-password.
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email address." };
+
+  const supabase = await createClient();
+  const origin = await siteOrigin();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+  });
+  // Don't reveal whether the email exists — always report "sent".
+  if (error && !/rate limit/i.test(error.message)) return { error: error.message };
+  return { sent: true };
+}
+
+// Set a new password from the recovery session created by the reset link.
+export async function resetPassword(formData: FormData) {
+  const password = String(formData.get("password"));
+  const confirm = String(formData.get("confirm"));
+  if (password.length < 6) return { error: "Password must be at least 6 characters." };
+  if (password !== confirm) return { error: "Passwords don't match." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your reset link has expired — request a new one." };
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+  // Clear the temp-password flag too, in case this account had it set.
+  await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+  redirect("/matches");
 }
 
 // Force-change flow: a freshly-seeded admin (must_change_password) sets a new
@@ -112,7 +153,18 @@ export async function changePassword(formData: FormData) {
 
 export async function signOut() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  // Local scope: clear this browser's session without a global revocation
+  // round-trip to the auth server (which was making logout slow).
+  await supabase.auth.signOut({ scope: "local" });
+
+  // The proxy verifies the JWT locally (getClaims), so a single lingering
+  // auth-cookie chunk would keep the user "signed in" and bounce them back
+  // into the app — a logout loop. Delete every Supabase cookie to be sure.
+  const cookieStore = await cookies();
+  for (const { name } of cookieStore.getAll()) {
+    if (name.startsWith("sb-")) cookieStore.delete(name);
+  }
+
   redirect("/login");
 }
 

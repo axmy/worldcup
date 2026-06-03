@@ -268,6 +268,14 @@ export function AuthCard({
                     />
                   </Field>
 
+                  {!isSignup && (
+                    <div style={{ textAlign: "right", marginTop: -4 }}>
+                      <Link href="/forgot-password" className="auth-link" style={{ fontSize: 13, textDecoration: "none" }}>
+                        Forgot password?
+                      </Link>
+                    </div>
+                  )}
+
                   {state?.error && (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--neg)", fontSize: 13, fontWeight: 600 }}>
                       <Icon name="x" size={15} stroke={2.6} /> {state.error}

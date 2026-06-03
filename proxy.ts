@@ -34,7 +34,8 @@ export async function proxy(request: NextRequest) {
   const user = claims?.claims ?? null;
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isAuthPage =
+    pathname === "/login" || pathname === "/register" || pathname === "/forgot-password";
   const isChangePw = pathname === "/change-password";
   const isProtected =
     pathname.startsWith("/matches") ||
@@ -42,6 +43,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/leaderboard") ||
     pathname.startsWith("/leagues") ||
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/reset-password") ||
     isChangePw;
 
   if (!user && isProtected) {

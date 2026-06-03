@@ -175,6 +175,8 @@ export function Chrome({
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/auth") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
     pathname.startsWith("/change-password");
 
   // Auth screens (and signed-out) render full-bleed with no app chrome.
