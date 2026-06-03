@@ -69,7 +69,17 @@ export async function login(formData: FormData) {
 // which exchanges the code for a session.
 export async function signInWithGoogle() {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") ?? "http://127.0.0.1:3000";
+
+  // Resolve the callback origin from the real request host so production never
+  // falls back to localhost. Prefer an explicit NEXT_PUBLIC_SITE_URL, then the
+  // request Origin, then Vercel's forwarded host headers.
+  const h = await headers();
+  const forwardedHost = h.get("x-forwarded-host") ?? h.get("host");
+  const forwardedProto = h.get("x-forwarded-proto") ?? "https";
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
+    h.get("origin") ??
+    (forwardedHost ? `${forwardedProto}://${forwardedHost}` : "http://127.0.0.1:3000");
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
