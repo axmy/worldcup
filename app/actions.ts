@@ -40,7 +40,12 @@ export async function register(formData: FormData): Promise<RegisterResult> {
     password,
     options: { data: { display_name: displayName } },
   });
-  if (error) return { error: error.message };
+  if (error) {
+    if (/rate limit|too many/i.test(error.message)) {
+      return { error: "We're sending too many emails right now. Please wait a minute and try again." };
+    }
+    return { error: error.message };
+  }
 
   // Anti-enumeration: when the email is already registered, Supabase returns an
   // obfuscated user with an empty `identities` array and sends NO email. Detect
@@ -111,7 +116,7 @@ export async function requestPasswordReset(formData: FormData) {
   const supabase = await createClient();
   const origin = await siteOrigin();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    redirectTo: `${origin}/auth/reset`,
   });
   // Don't reveal whether the email exists — always report "sent".
   if (error && !/rate limit/i.test(error.message)) return { error: error.message };

@@ -50,8 +50,10 @@ Controls where users land after OAuth / password-reset links. **This is the
   - `https://www.scorepredict.xyz/**`  (if you serve `www` too)
   - `http://localhost:3000/**`  (keep for local dev)
 
-  These must cover `/auth/callback` and `/reset-password`. If a redirect target
-  isn't allow-listed, Supabase silently falls back to the Site URL.
+  These must cover `/auth/callback` (Google), `/auth/reset` (password-reset
+  landing) and `/reset-password`. If a redirect target isn't allow-listed,
+  Supabase silently falls back to the Site URL — which is why a reset link can
+  drop the user straight into the app instead of the set-new-password screen.
 
 ### 2b. Google sign-in  (Authentication → Providers → Google)
 - Enable Google, paste the **production** OAuth Client ID + Secret **here**
