@@ -79,16 +79,35 @@ the token. The repo's `supabase/templates/confirmation.html` only applies to
   ```
 - The key is **`{{ .Token }}`** (the OTP).
 - Keep **"Confirm email"** enabled (Authentication → Settings → "Confirm email").
+- **Note:** if the Send Email hook (2d) is enabled, this dashboard template is
+  bypassed — the app renders the OTP itself, so you don't need to edit it.
 
 > Leave the **"Reset Password"** template as the **default link** version — the
 > forgot-password flow is built around that link (it routes through
 > `/auth/callback` into a recovery session). Don't convert it to an OTP.
 
-### 2d. SMTP  (Authentication → Settings → SMTP)
-Supabase's built-in mailer is heavily rate-limited and **not for production**.
-Configure a real SMTP provider (Resend, Postmark, SES, etc.) or signup
-confirmation and password-reset emails will be throttled/undelivered.
-(Google sign-in does not need email.)
+### 2d. Email delivery — Mailngine via the "Send Email" hook
+Supabase's built-in mailer is heavily rate-limited (test-only → "email rate
+limit exceeded"). This app sends auth emails through **Mailngine** using
+Supabase's **Send Email auth hook**, which POSTs each email to our endpoint
+`app/api/auth/send-email/route.ts`. That endpoint verifies the signature,
+renders the message (6-digit OTP for signup, reset link for recovery) and calls
+Mailngine's REST API. **With the hook enabled, Supabase no longer sends emails
+itself — its rate limit and the dashboard email templates (2c) no longer apply.**
+
+Setup:
+1. **Authentication → Hooks → "Send Email"** → Enable, set URI to
+   `https://scorepredict.xyz/api/auth/send-email`, and **copy the signing secret**
+   (looks like `v1,whsec_…`).
+2. **Vercel env vars** (Settings → Environment Variables):
+   - `SEND_EMAIL_HOOK_SECRET` = the hook secret from step 1
+   - `MAILNGINE_API_KEY` = your Mailngine key (`mn_live_…`)
+   - `MAIL_FROM` = a verified sender, e.g. `Kickoff <hello@scorepredict.xyz>`
+3. Redeploy. Leave the built-in SMTP **off** — the hook overrides sending.
+
+> Sender domain (`scorepredict.xyz`) must be verified in Mailngine.
+> Alternative: if you later use an SMTP-capable provider, disable the hook and
+> fill Authentication → Settings → SMTP instead.
 
 ---
 
