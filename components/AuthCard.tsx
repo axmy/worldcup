@@ -204,10 +204,10 @@ export function AuthCard({
                       name="token"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      maxLength={6}
+                      maxLength={8}
                       required
-                      placeholder="• • • • • •"
-                      style={{ ...fieldStyle, textAlign: "center", letterSpacing: ".4em", fontSize: 22, fontWeight: 700 }}
+                      placeholder="Enter the code"
+                      style={{ ...fieldStyle, textAlign: "center", letterSpacing: ".24em", fontSize: 22, fontWeight: 700 }}
                     />
                   </Field>
 
