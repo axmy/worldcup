@@ -3,9 +3,14 @@
 import { useActionState, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { login, register, verifyEmailOtp, resendEmailOtp, signInWithGoogle } from "@/app/actions";
-import { Brand, Crest, Icon } from "@/components/ui";
+import { Brand, Countdown, Crest, Icon } from "@/components/ui";
+import { flagEmoji } from "@/lib/flags";
 
 type AuthState = { error?: string; step?: "verify"; email?: string } | undefined;
+
+// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City.
+const KICKOFF_MS = new Date("2026-06-11T19:00:00-06:00").getTime();
+const HOSTS = ["Mexico", "United States", "Canada"];
 
 const HERO_TEAMS: [string, number, number, number, number, number][] = [
   // name, top%, left%, size, delay(s), rotate(deg)
@@ -100,22 +105,35 @@ export function AuthCard({
   }, [resendIn]);
 
   return (
-    <div style={{ minHeight: "100dvh", width: "100%", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100dvh", width: "100%", background: "transparent" }}>
       <div className="auth-shell">
         {/* ── Immersive hero (desktop) ── */}
         <div className="auth-hero">
           {/* gradient accent cap along the top edge */}
           <div aria-hidden style={{ position: "absolute", insetInline: 0, top: 0, height: 4, background: "var(--grad-accent)", zIndex: 3 }} />
+          {/* Pitch-line markings */}
+          <svg
+            aria-hidden
+            viewBox="0 0 600 800"
+            preserveAspectRatio="xMidYMid slice"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, color: "#ffffff", opacity: 0.07 }}
+          >
+            <line x1="0" y1="400" x2="600" y2="400" stroke="currentColor" strokeWidth="2" />
+            <circle cx="300" cy="400" r="110" fill="none" stroke="currentColor" strokeWidth="2" />
+            <circle cx="300" cy="400" r="5" fill="currentColor" />
+            <rect x="190" y="-80" width="220" height="150" fill="none" stroke="currentColor" strokeWidth="2" />
+            <rect x="190" y="730" width="220" height="150" fill="none" stroke="currentColor" strokeWidth="2" />
+          </svg>
           <div
             aria-hidden
             style={{
               position: "absolute",
               top: "-22%",
               right: "-14%",
-              width: 420,
-              height: 420,
+              width: 460,
+              height: 460,
               borderRadius: "50%",
-              background: "radial-gradient(circle, color-mix(in oklab, var(--accent) 32%, transparent), transparent 66%)",
+              background: "radial-gradient(circle, oklch(0.7 0.19 145 / 0.5), transparent 66%)",
               animation: "glowPulse 7s ease-in-out infinite",
               pointerEvents: "none",
             }}
@@ -140,7 +158,9 @@ export function AuthCard({
           </div>
 
           <div style={{ position: "relative", zIndex: 2 }}>
-            <Brand size="lg" name={brandName} tagline={brandTagline} />
+            <Link href="/" aria-label="Back to home" style={{ textDecoration: "none", color: "inherit" }}>
+              <Brand size="lg" name={brandName} tagline={brandTagline} />
+            </Link>
           </div>
 
           <div style={{ position: "relative", zIndex: 2, margin: "auto 0" }}>
@@ -148,19 +168,21 @@ export function AuthCard({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 8,
+                gap: 9,
                 padding: "6px 14px",
                 borderRadius: 99,
-                background: "var(--accent)",
-                color: "var(--accent-ink)",
+                background: "color-mix(in oklab, oklch(0.7 0.19 145) 22%, transparent)",
+                border: "1px solid color-mix(in oklab, oklch(0.7 0.19 145) 45%, transparent)",
+                color: "#dcfce7",
                 fontFamily: "var(--font-body)",
                 fontWeight: 700,
                 fontSize: 12,
-                letterSpacing: ".08em",
+                letterSpacing: ".06em",
                 marginBottom: 22,
               }}
             >
-              <Icon name="flame" size={15} stroke={2.6} /> Season live
+              <span aria-hidden style={{ fontSize: 14 }}>{HOSTS.map((h) => flagEmoji(h)).join(" ")}</span>
+              World Cup 2026
             </div>
             <h2 className="h-hero" style={{ fontSize: "clamp(44px, 5vw, 62px)", maxWidth: 480 }}>
               {heroHeadline}
@@ -168,6 +190,15 @@ export function AuthCard({
             <p style={{ color: "var(--text-dim)", fontSize: 16.5, marginTop: 18, maxWidth: 400, lineHeight: 1.5 }}>
               {heroSubtitle}
             </p>
+
+            {/* Kickoff countdown */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 11, marginTop: 24, padding: "10px 16px", borderRadius: 14, background: "color-mix(in oklab, var(--bg) 45%, transparent)", border: "1px solid var(--line-soft)" }}>
+              <Icon name="trophy" size={20} style={{ color: "oklch(0.78 0.18 140)" }} />
+              <div>
+                <div className="display" style={{ fontSize: 9, letterSpacing: ".16em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>Kickoff in</div>
+                <Countdown to={KICKOFF_MS} style={{ fontSize: 19, fontWeight: 800, color: "var(--text)" }} />
+              </div>
+            </div>
           </div>
 
           <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 40, paddingTop: 28, borderTop: "1px solid var(--line-soft)" }}>
@@ -180,10 +211,19 @@ export function AuthCard({
         {/* ── Form panel ── */}
         <div className="auth-form-wrap">
           <div className="auth-form" style={{ animation: "authIn .5s cubic-bezier(.2,.7,.3,1) both" }}>
+            {/* Back to the public landing page */}
+            <Link
+              href="/"
+              className="auth-link tap"
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, alignSelf: "flex-start", fontSize: 13.5, fontWeight: 600, color: "var(--text-faint)", textDecoration: "none", marginBottom: 18 }}
+            >
+              <Icon name="chevL" size={16} /> Back to home
+            </Link>
+
             {/* compact mobile brand */}
-            <div className="auth-mobile-brand" style={{ justifyContent: "center", marginBottom: 26 }}>
+            <Link href="/" aria-label="Back to home" className="auth-mobile-brand" style={{ justifyContent: "center", marginBottom: 26, textDecoration: "none", color: "inherit" }}>
               <Brand name={brandName} tagline={brandTagline} />
-            </div>
+            </Link>
 
             {verifyEmail ? (
               // ── OTP verify step (after signup) ──
@@ -290,7 +330,16 @@ export function AuthCard({
                   </Field>
 
                   {!isSignup && (
-                    <div style={{ textAlign: "right", marginTop: -4 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: -4 }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--text-dim)", userSelect: "none" }}>
+                        <input
+                          type="checkbox"
+                          name="remember"
+                          defaultChecked
+                          style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer" }}
+                        />
+                        Remember me
+                      </label>
                       <Link href="/forgot-password" className="auth-link" style={{ fontSize: 13, textDecoration: "none" }}>
                         Forgot password?
                       </Link>
@@ -350,8 +399,16 @@ export function AuthCard({
           .auth-hero {
             display: flex; flex-direction: column; justify-content: space-between;
             position: relative; overflow: hidden; border-radius: 28px;
-            background: linear-gradient(155deg, var(--bg-2), var(--bg));
-            border: 1px solid var(--line-soft); padding: 44px;
+            background: linear-gradient(160deg, oklch(0.27 0.06 152), oklch(0.16 0.03 155));
+            border: 1px solid color-mix(in oklab, oklch(0.7 0.19 145) 22%, var(--line-soft));
+            padding: 44px;
+            /* The hero is always a dark-green panel, so force light text tokens
+               here regardless of the page theme (fixes black text on green in
+               light mode). Descendants inherit these via var(). */
+            --text: #f3faf4;
+            --text-dim: color-mix(in oklab, #f3faf4 80%, transparent);
+            --text-faint: color-mix(in oklab, #f3faf4 56%, transparent);
+            color: var(--text);
           }
           .auth-mobile-brand { display: none; }
           .auth-form-wrap { padding: 24px 28px; }

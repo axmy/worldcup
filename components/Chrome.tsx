@@ -189,7 +189,7 @@ export function Chrome({
   const name = displayName || "You";
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "transparent" }}>
       {/* ── Header ── */}
       <header
         className="pitch-hero"

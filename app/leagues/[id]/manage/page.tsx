@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/site";
 import { ManageLeagueScreen, type ManageLeague, type ManageMember } from "@/components/ManageLeagueScreen";
+import type { LeaderboardRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,18 +27,26 @@ export default async function ManageLeaguePage({ params }: { params: Promise<{ i
   const isOwner = league.created_by === userId || !!profile?.is_admin;
   if (!isOwner) redirect(`/leagues/${id}`);
 
-  const { data: memberRows } = await supabase
-    .from("league_members")
-    .select("user_id, profiles(display_name)")
-    .eq("league_id", id);
+  const [{ data: memberRows }, { data: standings }] = await Promise.all([
+    supabase.from("league_members").select("user_id, profiles(display_name)").eq("league_id", id),
+    supabase.rpc("league_standings", { p_league_id: id }),
+  ]);
+
+  // Each participant's points in THIS league, so the organizer sees how they're doing.
+  const points: Record<string, number> = {};
+  ((standings as LeaderboardRow[] | null) ?? []).forEach((r) => {
+    points[r.user_id] = r.total_points;
+  });
 
   const members: ManageMember[] = ((memberRows as MemberRow[] | null) ?? []).map((m) => ({
     user_id: m.user_id,
     display_name: m.profiles?.display_name ?? "Player",
+    points: points[m.user_id] ?? 0,
   }));
-  // Owner first, then alphabetical.
+  // Owner first, then by points (high → low), then alphabetical.
   members.sort((a, b) =>
     Number(b.user_id === league.created_by) - Number(a.user_id === league.created_by) ||
+    b.points - a.points ||
     a.display_name.localeCompare(b.display_name),
   );
 

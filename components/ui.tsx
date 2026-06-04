@@ -391,12 +391,19 @@ export function StatusPill({ status }: { status: MatchState }) {
   );
 }
 
-/* ── Date helpers ── */
+/* ── Date helpers ──
+   The tournament runs in the Maldives, so every match time is displayed in
+   Maldives time (UTC+5) regardless of the viewer's own timezone. */
+export const TOURNAMENT_TZ = "Indian/Maldives";
 export function fmtKick(ms: number) {
-  return new Date(ms).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return new Date(ms).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: TOURNAMENT_TZ });
 }
 export function fmtDay(ms: number) {
-  return new Date(ms).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return new Date(ms).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone: TOURNAMENT_TZ });
+}
+/** Calendar-day key in Maldives time (YYYY-MM-DD) — for grouping matches by day. */
+export function dayKey(ms: number) {
+  return new Date(ms).toLocaleDateString("en-CA", { timeZone: TOURNAMENT_TZ });
 }
 
 /* ── Score stepper (one team) ── */

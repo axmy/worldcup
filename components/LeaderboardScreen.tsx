@@ -16,17 +16,25 @@ export function LeaderboardScreen({
   title = "Leaderboard",
   subtitle,
   header,
+  meRank,
+  cappedAt,
 }: {
   board: LeaderboardRow[];
   meId: string;
   title?: string;
   subtitle?: string;
   header?: ReactNode;
+  // The viewer's own standing — used to pin their row when they rank below the
+  // rendered top-N (large global boards are capped for performance).
+  meRank?: { rank: number; total_points: number; scored_matches: number; exact_hits: number };
+  cappedAt?: number;
 }) {
   const top3 = board.slice(0, 3);
   const rest = board.slice(3);
   const myIdx = board.findIndex((u) => u.user_id === meId);
   const myRank = myIdx + 1;
+  // When the board is capped and the viewer isn't in it, show their real rank.
+  const meOutsideList = !!meRank && myIdx === -1;
 
   return (
     <div className="screen-enter">
@@ -113,6 +121,39 @@ export function LeaderboardScreen({
             );
           })}
         </div>
+      )}
+
+      {/* Your own row, pinned when you rank below the rendered top-N. */}
+      {meOutsideList && meRank && (
+        <div
+          className="card-sport"
+          style={{
+            marginTop: 14,
+            display: "grid",
+            gridTemplateColumns: "44px 1fr auto",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 15px",
+            border: "1px solid color-mix(in oklab, var(--accent) 45%, transparent)",
+            background: "color-mix(in oklab, var(--accent) 12%, transparent)",
+          }}
+        >
+          <span className="display num" style={{ fontSize: 16, fontWeight: 800, color: "var(--accent)", textAlign: "center" }}>#{meRank.rank}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+            <Avatar name="You" size={34} isMe />
+            <div style={{ minWidth: 0 }}>
+              <div className="display" style={{ fontSize: 15, fontWeight: 700 }}>You</div>
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{meRank.exact_hits} exact · {meRank.scored_matches} scored</div>
+            </div>
+          </div>
+          <span className="display num" style={{ fontSize: 19, fontWeight: 800, color: "var(--accent)" }}>{meRank.total_points}</span>
+        </div>
+      )}
+
+      {cappedAt && board.length >= cappedAt && (
+        <p style={{ textAlign: "center", fontSize: 12.5, color: "var(--text-faint)", marginTop: 14 }}>
+          Showing the top {cappedAt.toLocaleString()}.
+        </p>
       )}
 
       {myRank > 3 && top3[2] && (

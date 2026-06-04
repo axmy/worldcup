@@ -1,10 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { sessionPersist } from "@/lib/supabase/remember";
 
 // Server-side Supabase client. All writes go through this so RLS (the deadline
 // lock) is enforced with the database's own clock — never the browser's.
 export async function createClient() {
   const cookieStore = await cookies();
+  // "Remember me": when the user opted out (remember=0), the Supabase auth
+  // cookies are written as session cookies (no maxAge/expires) so they clear
+  // when the browser closes. Default (no preference) stays persistent.
+  const sessionOnly = cookieStore.get("remember")?.value === "0";
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +22,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, sessionPersist(name, options, sessionOnly)),
             );
           } catch {
             // Called from a Server Component — safe to ignore; middleware refreshes.

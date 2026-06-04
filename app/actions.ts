@@ -84,6 +84,18 @@ export async function resendEmailOtp(formData: FormData) {
 export async function login(formData: FormData) {
   const email = String(formData.get("email"));
   const password = String(formData.get("password"));
+  // Unchecked checkboxes submit nothing, so presence = "remember me" on.
+  const remember = formData.get("remember") != null;
+
+  // Record the preference BEFORE creating the client: the sign-in below writes
+  // the auth cookies, and createClient reads this to decide whether they should
+  // persist across browser restarts (remember on) or be session-only (off).
+  const cookieStore = await cookies();
+  cookieStore.set("remember", remember ? "1" : "0", {
+    path: "/",
+    sameSite: "lax",
+    ...(remember ? { maxAge: 60 * 60 * 24 * 400 } : {}),
+  });
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -177,6 +189,7 @@ export async function signOut() {
   for (const { name } of cookieStore.getAll()) {
     if (name.startsWith("sb-")) cookieStore.delete(name);
   }
+  cookieStore.delete("remember");
 
   redirect("/login");
 }
