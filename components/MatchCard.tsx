@@ -173,11 +173,11 @@ export function MatchCard({
           )}
           {status === "final" && (
             <>
-              <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
+              <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
                 {pred ? (
                   <>
                     Your pick{" "}
-                    <b className="num" style={{ color: "var(--text-dim)", fontWeight: 700 }}>
+                    <b className="num" style={{ color: "var(--text)", fontWeight: 800 }}>
                       {pred[0]}–{pred[1]}
                     </b>
                   </>
