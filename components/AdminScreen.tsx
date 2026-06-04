@@ -13,6 +13,7 @@ import {
   ScreenHead,
   SectionLabel,
   StatusPill,
+  TOURNAMENT_TZ,
   fmtKick,
   matchStatus,
   useNow,
@@ -54,7 +55,7 @@ function StatTile({ big, label, accent }: { big: number; label: string; accent?:
 const sel: CSSProperties = { background: "var(--bg-3)", border: "1px solid var(--line-soft)", color: "var(--text)", borderRadius: 10, padding: "10px 11px", fontSize: 14, width: "100%", colorScheme: "dark", fontFamily: "var(--font-body)" };
 const lab: CSSProperties = { fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", color: "var(--text-faint)", marginBottom: 6, display: "block", fontFamily: "var(--font-display)" };
 
-export function AdminScreen({ matches, settings, players, leagues }: { matches: Match[]; settings: Settings; players: LeaderboardRow[]; leagues: LeagueSummary[] }) {
+export function AdminScreen({ matches, settings, players, leagues, leagueCounts, totalUsers }: { matches: Match[]; settings: Settings; players: LeaderboardRow[]; leagues: LeagueSummary[]; leagueCounts: Record<string, number>; totalUsers: number }) {
   const now = useNow(1000) ?? Date.now();
   const [tab, setTab] = useState<"fixtures" | "results" | "leagues" | "players" | "settings">("fixtures");
   const [creating, setCreating] = useState(false);
@@ -105,7 +106,7 @@ export function AdminScreen({ matches, settings, players, leagues }: { matches: 
       {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onEdit={setEditing} onDeleted={() => flash("Fixture deleted")} />}
       {tab === "results" && <Results matches={matches} now={now} onPublished={() => flash("Result published — players scored")} />}
       {tab === "leagues" && <Leagues leagues={leagues} onDeleted={() => flash("League deleted")} />}
-      {tab === "players" && <Players players={players} />}
+      {tab === "players" && <Players players={players} leagueCounts={leagueCounts} totalUsers={totalUsers} />}
       {tab === "settings" && <SettingsForm settings={settings} onSaved={() => flash("Settings saved")} />}
 
       {(creating || editing) && (
@@ -122,7 +123,7 @@ export function AdminScreen({ matches, settings, players, leagues }: { matches: 
 
 /* ── FIXTURES ── */
 const fmtWindow = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TOURNAMENT_TZ });
 
 function Fixtures({ matches, now, onNew, onEdit, onDeleted }: { matches: Match[]; now: number; onNew: () => void; onEdit: (m: Match) => void; onDeleted: () => void }) {
   const router = useRouter();
@@ -270,22 +271,32 @@ function Results({ matches, now, onPublished }: { matches: Match[]; now: number;
   );
 }
 
-/* ── PLAYERS ── */
-function Players({ players }: { players: LeaderboardRow[] }) {
+/* ── PLAYERS (global user list) ── */
+function Players({ players, leagueCounts, totalUsers }: { players: LeaderboardRow[]; leagueCounts: Record<string, number>; totalUsers: number }) {
+  const capped = totalUsers > players.length;
   return (
     <div>
-      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{players.length} total</span>}>Registered players</SectionLabel>
-      {players.length === 0 && <Empty icon="user" text="No players registered yet." />}
+      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{totalUsers.toLocaleString()} user{totalUsers === 1 ? "" : "s"}</span>}>All registered users</SectionLabel>
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", margin: "-4px 2px 14px" }}>
+        Everyone signed up on the platform, with the leagues they&apos;ve joined and total points across all leagues.
+        {capped && ` Showing the top ${players.length} by points.`}
+      </p>
+      {players.length === 0 && <Empty icon="user" text="No users registered yet." />}
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--line-soft)", borderRadius: 16, overflow: "hidden" }}>
-        {players.map((u, i) => (
-          <div key={u.user_id} className="row-hover" style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 15px", borderTop: i === 0 ? "none" : "1px solid var(--line-soft)" }}>
-            <Avatar name={u.display_name} size={34} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="display" style={{ fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.display_name}</div>
-              <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{u.scored_matches} scored · {u.total_points} pts</div>
+        {players.map((u, i) => {
+          const leagues = leagueCounts[u.user_id] ?? 0;
+          return (
+            <div key={u.user_id} className="row-hover" style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 15px", borderTop: i === 0 ? "none" : "1px solid var(--line-soft)" }}>
+              <Avatar name={u.display_name} size={34} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="display" style={{ fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.display_name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+                  {leagues} league{leagues === 1 ? "" : "s"} · {u.scored_matches} scored · {u.total_points} pts
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

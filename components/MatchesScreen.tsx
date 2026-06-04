@@ -4,12 +4,53 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Match } from "@/lib/types";
-import { Empty, Icon, ScreenHead, SectionLabel, fmtDay, matchStatus, useNow } from "@/components/ui";
+import { Countdown, Empty, Icon, ScreenHead, SectionLabel, dayKey, fmtDay, matchStatus, useNow } from "@/components/ui";
+import { flagEmoji } from "@/lib/flags";
 import { MatchCard, type Pred } from "@/components/MatchCard";
 import { PredictSheet } from "@/components/PredictSheet";
 import { LeagueSwitcher, type LeagueOption } from "@/components/LeagueSwitcher";
 
 export type PredMap = Record<string, Pred>;
+
+// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City.
+const KICKOFF_MS = new Date("2026-06-11T19:00:00-06:00").getTime();
+const HOST_FLAGS = ["Mexico", "United States", "Canada"].map((h) => flagEmoji(h)).join(" ");
+
+// Slim stadium ribbon shown atop the Matches screen.
+function WorldCupRibbon() {
+  return (
+    <div
+      className="card-sport"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+        padding: "12px 16px",
+        marginBottom: 16,
+        borderRadius: 16,
+        background: "linear-gradient(120deg, color-mix(in oklab, oklch(0.62 0.17 150) 26%, var(--bg-2)), var(--bg-2))",
+        border: "1px solid color-mix(in oklab, oklch(0.7 0.19 145) 28%, var(--line-soft))",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <span aria-hidden style={{ fontSize: 18 }}>{HOST_FLAGS}</span>
+        <div style={{ minWidth: 0 }}>
+          <div className="display" style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.1 }}>World Cup 2026</div>
+          <div className="display" style={{ fontSize: 9.5, letterSpacing: ".14em", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" }}>USA · Canada · Mexico</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name="trophy" size={16} style={{ color: "oklch(0.8 0.18 140)" }} />
+        <div style={{ textAlign: "right" }}>
+          <div className="display" style={{ fontSize: 8.5, letterSpacing: ".14em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>Kickoff in</div>
+          <Countdown to={KICKOFF_MS} style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Shown on Matches / My Picks when the user hasn't joined any league yet —
 // predictions are per-league, so there's nowhere to predict until they join.
@@ -95,10 +136,10 @@ export function MatchesScreen({
     });
     const byDay: Record<string, Match[]> = {};
     list.forEach((m) => {
-      const key = new Date(m.kickoff_time).toDateString();
+      const key = dayKey(new Date(m.kickoff_time).getTime()); // group by Maldives calendar day
       (byDay[key] = byDay[key] || []).push(m);
     });
-    return Object.entries(byDay).sort((x, y) => new Date(x[0]).getTime() - new Date(y[0]).getTime());
+    return Object.entries(byDay).sort((x, y) => x[0].localeCompare(y[0]));
   }, [filter, now, matches]);
 
   const openCount = matches.filter((m) => matchStatus(m, now) === "open").length;
@@ -122,7 +163,9 @@ export function MatchesScreen({
 
   return (
     <div className="screen-enter">
-      <ScreenHead title="Matches" sub={`${openCount} open for predictions`} />
+      <ScreenHead title="Matches" sub={`${openCount} open for predictions · times in Maldives time (MVT)`} />
+
+      <WorldCupRibbon />
 
       <LeagueSwitcher leagues={leagues} activeId={activeLeagueId} />
 

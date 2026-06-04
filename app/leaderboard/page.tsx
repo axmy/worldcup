@@ -5,6 +5,14 @@ import { LeaderboardScreen } from "@/components/LeaderboardScreen";
 import { Brand } from "@/components/ui";
 import type { LeaderboardRow } from "@/lib/types";
 
+type RankRow = {
+  rank: number;
+  total_points: number;
+  scored_matches: number;
+  exact_hits: number;
+  total_players: number;
+};
+
 export const dynamic = "force-dynamic";
 
 // The global competition's standings — public, visible to logged-out visitors.
@@ -14,21 +22,30 @@ export default async function LeaderboardPage() {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
 
-  const [{ data: rows }, settings] = await Promise.all([
-    supabase.rpc("global_standings"),
+  const TOP_N = 50;
+  const [{ data: rows }, rankRes, { data: count }, settings] = await Promise.all([
+    supabase
+      .rpc("global_standings")
+      .order("total_points", { ascending: false })
+      .order("exact_hits", { ascending: false })
+      .limit(TOP_N),
+    userId ? supabase.rpc("global_rank") : Promise.resolve({ data: null }),
+    supabase.rpc("global_player_count"),
     getSettingsCached(),
   ]);
 
-  const board = ((rows as LeaderboardRow[] | null) ?? []).sort(
-    (a, b) => b.total_points - a.total_points || b.exact_hits - a.exact_hits,
-  );
+  const board = (rows as LeaderboardRow[] | null) ?? [];
+  const meRow = (rankRes?.data as RankRow[] | null)?.[0] ?? null;
+  const total = (count as number | null) ?? meRow?.total_players ?? board.length;
 
   const screen = (
     <LeaderboardScreen
       board={board}
       meId={userId ?? ""}
       title="Global Leaderboard"
-      subtitle={`The official competition · ${board.length} player${board.length === 1 ? "" : "s"}`}
+      subtitle={`The official competition · ${total.toLocaleString()} player${total === 1 ? "" : "s"}`}
+      meRank={meRow ? { rank: meRow.rank, total_points: meRow.total_points, scored_matches: meRow.scored_matches, exact_hits: meRow.exact_hits } : undefined}
+      cappedAt={TOP_N}
     />
   );
 

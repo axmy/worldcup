@@ -1,10 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sessionPersist } from "@/lib/supabase/remember";
 
 // Next.js 16: the former `middleware` convention is now `proxy` (Node runtime).
 // Refreshes the auth session on every request and guards protected routes.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+
+  // "Remember me" opt-out: keep refreshed auth cookies session-only.
+  const sessionOnly = request.cookies.get("remember")?.value === "0";
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,7 +24,7 @@ export async function proxy(request: NextRequest) {
           );
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, sessionPersist(name, options, sessionOnly)),
           );
         },
       },

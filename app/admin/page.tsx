@@ -17,15 +17,26 @@ export default async function AdminPage() {
     .single();
   if (!profile?.is_admin) redirect("/matches");
 
-  const [matches, settings, { data: players }, { data: leaguesRaw }] = await Promise.all([
+  const USER_CAP = 200;
+  const [matches, settings, { data: players }, { count: totalUsers }, { data: leaguesRaw }, { data: memberships }] = await Promise.all([
     getMatchesCached(),
     getSettingsCached(),
-    supabase.from("leaderboard").select("*").order("total_points", { ascending: false }),
+    // Cap the rendered list; show the true total separately so the page stays
+    // fast even with thousands of users.
+    supabase.from("leaderboard").select("*").order("total_points", { ascending: false }).limit(USER_CAP),
+    supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase
       .from("leagues")
       .select("id, name, join_code, created_by, created_at, points_exact, points_outcome, submission_mode, is_global, league_members(count)")
       .order("created_at", { ascending: false }),
+    supabase.from("league_members").select("user_id"),
   ]);
+
+  // How many leagues each user belongs to — shown in the global user list.
+  const leagueCounts: Record<string, number> = {};
+  ((memberships as { user_id: string }[] | null) ?? []).forEach((m) => {
+    leagueCounts[m.user_id] = (leagueCounts[m.user_id] ?? 0) + 1;
+  });
 
   const s = (settings ?? {}) as Partial<Settings>;
 
@@ -60,6 +71,8 @@ export default async function AdminPage() {
       }}
       players={(players as LeaderboardRow[] | null) ?? []}
       leagues={leagues}
+      leagueCounts={leagueCounts}
+      totalUsers={totalUsers ?? 0}
     />
   );
 }

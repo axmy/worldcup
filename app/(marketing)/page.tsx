@@ -14,15 +14,19 @@ export default async function Home() {
   const userId = await getUserId(supabase);
   if (userId) redirect("/matches");
 
+  // Only the top 5 are shown — push the ordering + limit into the query so we
+  // never transfer the whole (possibly huge) global board for a teaser.
   const [settings, { data: rows }, shareUrl] = await Promise.all([
     getSettingsCached(),
-    supabase.rpc("global_standings"),
+    supabase
+      .rpc("global_standings")
+      .order("total_points", { ascending: false })
+      .order("exact_hits", { ascending: false })
+      .limit(5),
     getSiteUrl(),
   ]);
 
-  const topPlayers = ((rows as LeaderboardRow[] | null) ?? [])
-    .sort((a, b) => b.total_points - a.total_points || b.exact_hits - a.exact_hits)
-    .slice(0, 5);
+  const topPlayers = (rows as LeaderboardRow[] | null) ?? [];
 
   return (
     <LandingScreen

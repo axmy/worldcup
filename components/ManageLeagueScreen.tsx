@@ -22,7 +22,7 @@ export type ManageLeague = {
   submission_mode: "single" | "multiple";
 };
 
-export type ManageMember = { user_id: string; display_name: string };
+export type ManageMember = { user_id: string; display_name: string; points: number };
 
 const field: CSSProperties = {
   background: "var(--bg-3)",
@@ -217,8 +217,8 @@ export function ManageLeagueScreen({
         />
       </div>
 
-      {/* Members */}
-      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{members.length} total</span>}>Members</SectionLabel>
+      {/* Participants */}
+      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{members.length} total</span>}>Participants</SectionLabel>
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--line-soft)", borderRadius: 16, overflow: "hidden", marginBottom: 22 }}>
         {members.map((m, i) => {
           const isOwner = m.user_id === league.created_by;
@@ -229,7 +229,9 @@ export function ManageLeagueScreen({
                 <div className="display" style={{ fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {m.display_name}
                 </div>
-                {isOwner && <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>Owner</div>}
+                <div style={{ fontSize: 11.5, color: isOwner ? "var(--accent)" : "var(--text-faint)" }}>
+                  {isOwner ? "Owner · " : ""}{m.points} pts
+                </div>
               </div>
               {!isOwner && (
                 <button
