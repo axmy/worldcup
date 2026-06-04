@@ -15,7 +15,7 @@ Stack: Next.js 16 (App Router) · Supabase (Postgres + Auth) · Vercel.
 
 ## 1. Database — apply migrations
 
-The schema lives in `supabase/migrations/` (`0001`…`0009`), applied in order.
+The schema lives in `supabase/migrations/` (`0001`…`0012`), applied in order.
 
 ```bash
 supabase link --project-ref xfwbnyqimrytrjutfbuu
@@ -24,6 +24,23 @@ supabase db push
 
 This applies all migrations (and seeds the 72 WC2026 fixtures + the predefined
 admin). Re-run `supabase db push` after adding any new migration.
+
+### Migration reference
+
+| File | What it does |
+|------|--------------|
+| `0001`…`0009` | Base schema: settings, profiles, matches, predictions, scoring trigger, leaderboard, leagues, per-league predictions, submission windows. |
+| `0006_wc2026_fixtures` | Seeds the 72 WC2026 group-stage fixtures (idempotent). |
+| `0005_predefined_admin` | Seeds the predefined admin account (see warning below). |
+| `0010_per_league_scoring` | Moves scoring config (`points_exact`, `points_outcome`, `submission_mode`) from the global `app_settings` row onto **each league** (backfilled, so existing leagues are unchanged). Rewrites the `score_predictions()` trigger, `league_standings()`, and the predictions update RLS to read per-league values. `app_settings` keeps these columns as **defaults for new leagues**. |
+| `0011_league_self_service` | `SECURITY DEFINER` RPCs so **any signed-in user can create and run their own leagues**: `create_league` (creator becomes owner + first member), plus owner-guarded `update_league`, `regenerate_join_code`, `remove_member`, `delete_league`, and the `is_league_owner` helper. Direct table writes stay super-admin-only. |
+| `0012_global_competition` | Adds an `is_global` league (unique — only one), seeds the **"Global Leaderboard"** competition, auto-enrolls every existing user, and adds a trigger to auto-enroll new signups. Adds the **public** `global_standings()` RPC (granted to `anon`) used by the logged-out `/leaderboard` page. Protects the global league: members can't leave it and it can't be deleted. |
+
+> These three (`0010`–`0012`) are **forward-only** (no down migrations), matching
+> the existing convention — apply them in order and don't hand-run them twice.
+> Existing predictions are **not** re-scored on deploy: each league is backfilled
+> to the current global scoring, so standings are identical until an organizer
+> changes their league's rules (or a result is re-published).
 
 > ⚠️ `0005_predefined_admin.sql` seeds **`admin@kickoff.local` / `ChangeMe123!`**.
 > Change it in the SQL before pushing, or rely on the forced first-login
@@ -131,7 +148,7 @@ The app reads only these at runtime:
 |----------|-------|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://xfwbnyqimrytrjutfbuu.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the project's anon/public key |
-| `NEXT_PUBLIC_SITE_URL` *(optional but recommended)* | `https://scorepredict.xyz` — forces the canonical origin for OAuth/reset redirect URLs regardless of which host the request came in on |
+| `NEXT_PUBLIC_SITE_URL` *(recommended)* | `https://scorepredict.xyz` — forces the canonical origin for OAuth/reset redirect URLs, the **social share links**, and the absolute **Open Graph / Twitter preview image** URL. Without it, share links and the OG image fall back to the request host (or localhost), so previews won't unfurl correctly. |
 
 > The `SUPABASE_AUTH_EXTERNAL_GOOGLE_*` vars in `.env.local` are **local-only**
 > (`supabase start`). Production Google creds go in the Supabase dashboard (2b),
@@ -159,6 +176,10 @@ env changes take effect on the next deploy.
 - [ ] **Forgot password:** `/forgot-password` → email link → `/reset-password` → new password → signed in.
 - [ ] **Logout:** lands on `/login` and stays signed out (no loop).
 - [ ] Admin can create/edit fixtures with an open/close window; players can only predict inside it.
+- [ ] **Landing page:** logged-out `/` shows the marketing page; logged-in `/` redirects to `/matches`.
+- [ ] **Leagues:** a normal user can create a league (becomes owner), set scoring, invite by code; another user can join by code; per-league scoring works.
+- [ ] **Global leaderboard:** `/leaderboard` loads logged-out and shows the global competition.
+- [ ] **Social preview:** paste the site URL into the [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) / X Card Validator — the OG image and title/description unfurl (requires `NEXT_PUBLIC_SITE_URL`).
 
 ## 5. Security checklist
 - [ ] Rotate the Google OAuth **client secret** (it was shared in plaintext during development) and update it in the Supabase dashboard.
