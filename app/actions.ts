@@ -228,33 +228,89 @@ export async function submitPrediction(formData: FormData) {
 }
 
 // ---------------- Leagues ----------------
-// All leagues share the global fixtures; a league is a named, code-joined
-// group with its own standings. Only admins create/delete leagues; users
-// join by code (via the join_league RPC) and can leave their own.
+// All leagues share the global fixtures; a league is a named, code-joined group
+// with its own scoring rules and standings. Any signed-in user can create a
+// league (becoming its owner via the create_league RPC) and manage the ones
+// they own; users join by code (join_league) and can leave their own.
+
+// Parse the optional scoring overrides from a create/update form. Empty fields
+// fall back to the platform defaults (handled inside the RPC for create).
+function leagueRuleFields(formData: FormData) {
+  const exact = formData.get("points_exact");
+  const outcome = formData.get("points_outcome");
+  const mode = String(formData.get("submission_mode") ?? "").trim();
+  return {
+    p_points_exact: exact === null || exact === "" ? null : Number(exact),
+    p_points_outcome: outcome === null || outcome === "" ? null : Number(outcome),
+    p_submission_mode: mode === "single" || mode === "multiple" ? mode : null,
+  };
+}
 
 export async function createLeague(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "League name is required." };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in." };
-
-  // join_code has a DB default + unique constraint; retry on the rare collision.
-  let lastError = "Could not create the league.";
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const { error } = await supabase.from("leagues").insert({ name, created_by: user.id });
-    if (!error) {
-      revalidatePath("/admin");
-      revalidatePath("/leagues");
-      return { ok: true };
-    }
-    lastError = error.message;
-    if (error.code !== "23505") break; // not a unique-violation → don't retry
+  const rules = leagueRuleFields(formData);
+  const { data, error } = await supabase.rpc("create_league", { p_name: name, ...rules });
+  if (error) {
+    if (/not signed in/i.test(error.message)) return { error: "Not signed in." };
+    return { error: "Could not create the league." };
   }
-  return { error: lastError };
+  revalidatePath("/leagues");
+  const league = Array.isArray(data) ? data[0] : data;
+  if (league?.id) redirect(`/leagues/${league.id}`);
+  return { ok: true };
+}
+
+export async function updateLeagueSettings(formData: FormData) {
+  const leagueId = String(formData.get("league_id"));
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "League name is required." };
+  const rules = leagueRuleFields(formData);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_league", {
+    p_league_id: leagueId,
+    p_name: name,
+    p_points_exact: rules.p_points_exact ?? 3,
+    p_points_outcome: rules.p_points_outcome ?? 1,
+    p_submission_mode: rules.p_submission_mode ?? "multiple",
+  });
+  if (error) {
+    return { error: /owner/i.test(error.message) ? "Only the league owner can do that." : "Could not save settings." };
+  }
+  revalidatePath("/leagues");
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/manage`);
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true };
+}
+
+export async function regenerateJoinCode(formData: FormData) {
+  const leagueId = String(formData.get("league_id"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("regenerate_join_code", { p_league_id: leagueId });
+  if (error) {
+    return { error: /owner/i.test(error.message) ? "Only the league owner can do that." : "Could not regenerate the code." };
+  }
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/manage`);
+  return { ok: true, code: data as string };
+}
+
+export async function removeMember(formData: FormData) {
+  const leagueId = String(formData.get("league_id"));
+  const userId = String(formData.get("user_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_member", { p_league_id: leagueId, p_user_id: userId });
+  if (error) {
+    return { error: /owner/i.test(error.message) ? "The owner can't be removed." : "Could not remove member." };
+  }
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath(`/leagues/${leagueId}/manage`);
+  return { ok: true };
 }
 
 export async function joinLeague(formData: FormData) {
@@ -287,10 +343,15 @@ export async function leaveLeague(formData: FormData) {
 export async function deleteLeague(formData: FormData) {
   const leagueId = String(formData.get("league_id"));
   const supabase = await createClient();
-  const { error } = await supabase.from("leagues").delete().eq("id", leagueId);
-  if (error) throw new Error(error.message);
+  // RPC permits the league owner (or an admin) to delete; the global league is
+  // protected. Direct table delete stays admin-only via RLS.
+  const { error } = await supabase.rpc("delete_league", { p_league_id: leagueId });
+  if (error) {
+    return { error: /owner/i.test(error.message) ? "Only the league owner can do that." : "Could not delete the league." };
+  }
   revalidatePath("/admin");
   revalidatePath("/leagues");
+  return { ok: true };
 }
 
 // ---------------- Admin ----------------

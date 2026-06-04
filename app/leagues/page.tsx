@@ -11,6 +11,10 @@ type MembershipRow = {
     join_code: string;
     created_by: string | null;
     created_at: string;
+    points_exact: number;
+    points_outcome: number;
+    submission_mode: "single" | "multiple";
+    is_global: boolean;
     league_members: { count: number }[];
   } | null;
 };
@@ -22,7 +26,9 @@ export default async function LeaguesPage() {
   // Leagues I'm a member of, with each league's total member count.
   const { data } = await supabase
     .from("league_members")
-    .select("leagues(id, name, join_code, created_by, created_at, league_members(count))")
+    .select(
+      "leagues(id, name, join_code, created_by, created_at, points_exact, points_outcome, submission_mode, is_global, league_members(count))",
+    )
     .eq("user_id", userId)
     .order("joined_at", { ascending: true });
 
@@ -35,8 +41,15 @@ export default async function LeaguesPage() {
       join_code: l.join_code,
       created_by: l.created_by,
       created_at: l.created_at,
+      points_exact: l.points_exact,
+      points_outcome: l.points_outcome,
+      submission_mode: l.submission_mode,
+      is_global: l.is_global,
       member_count: l.league_members?.[0]?.count ?? 0,
     }));
 
-  return <LeaguesScreen leagues={leagues} />;
+  // Sort the global league first so it's always the obvious entry point.
+  leagues.sort((a, b) => Number(b.is_global) - Number(a.is_global));
+
+  return <LeaguesScreen leagues={leagues} meId={userId} />;
 }

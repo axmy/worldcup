@@ -5,7 +5,17 @@ import Link from "next/link";
 import { leaveLeague } from "@/app/actions";
 import { Icon } from "@/components/ui";
 
-export function LeagueHeader({ leagueId, joinCode }: { leagueId: string; joinCode: string }) {
+export function LeagueHeader({
+  leagueId,
+  joinCode,
+  isOwner = false,
+  isGlobal = false,
+}: {
+  leagueId: string;
+  joinCode: string;
+  isOwner?: boolean;
+  isGlobal?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -29,39 +39,54 @@ export function LeagueHeader({ leagueId, joinCode }: { leagueId: string; joinCod
       </Link>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button
-          type="button"
-          onClick={copy}
-          className="chip tap"
-          title="Copy join code"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
-            padding: "7px 11px",
-            borderRadius: 10,
-            background: "var(--bg-3)",
-            border: "1px solid var(--line-soft)",
-            color: "var(--text)",
-          }}
-        >
-          <Icon name={copied ? "check" : "ticket"} size={14} style={{ color: "var(--accent)" }} />
-          <span className="display num" style={{ fontWeight: 800, letterSpacing: ".16em", fontSize: 14 }}>
-            {copied ? "COPIED" : joinCode}
-          </span>
-        </button>
-
-        <form action={leaveLeague}>
-          <input type="hidden" name="league_id" value={leagueId} />
+        {!isGlobal && (
           <button
-            type="submit"
-            className="btn-ghost tap"
-            title="Leave league"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, color: "var(--text-faint)" }}
+            type="button"
+            onClick={copy}
+            className="chip tap"
+            title="Copy join code"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "7px 11px",
+              borderRadius: 10,
+              background: "var(--bg-3)",
+              border: "1px solid var(--line-soft)",
+              color: "var(--text)",
+            }}
           >
-            <Icon name="x" size={14} /> Leave
+            <Icon name={copied ? "check" : "ticket"} size={14} style={{ color: "var(--accent)" }} />
+            <span className="display num" style={{ fontWeight: 800, letterSpacing: ".16em", fontSize: 14 }}>
+              {copied ? "COPIED" : joinCode}
+            </span>
           </button>
-        </form>
+        )}
+
+        {isOwner && (
+          <Link
+            href={`/leagues/${leagueId}/manage`}
+            className="btn-ghost tap"
+            title="Manage league"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, color: "var(--text-dim)", textDecoration: "none" }}
+          >
+            <Icon name="cog" size={14} /> Manage
+          </Link>
+        )}
+
+        {!isOwner && !isGlobal && (
+          <form action={leaveLeague}>
+            <input type="hidden" name="league_id" value={leagueId} />
+            <button
+              type="submit"
+              className="btn-ghost tap"
+              title="Leave league"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, color: "var(--text-faint)" }}
+            >
+              <Icon name="x" size={14} /> Leave
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

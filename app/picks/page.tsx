@@ -1,5 +1,5 @@
 import { createClient, getUserId } from "@/lib/supabase/server";
-import { getMatchesCached, getSettingsCached } from "@/lib/data";
+import { getMatchesCached } from "@/lib/data";
 import { MyPicksScreen } from "@/components/MyPicksScreen";
 import type { PredMap } from "@/components/MatchesScreen";
 import type { LeagueOption } from "@/components/LeagueSwitcher";
@@ -14,16 +14,17 @@ export default async function PicksPage({ searchParams }: { searchParams: Promis
 
   const { data: memberships } = await supabase
     .from("league_members")
-    .select("leagues(id, name)")
+    .select("leagues(id, name, is_global, points_exact, points_outcome, submission_mode)")
     .eq("user_id", userId)
     .order("joined_at", { ascending: true });
 
   const leagues = ((memberships as { leagues: LeagueOption | null }[] | null) ?? [])
     .map((r) => r.leagues)
     .filter((l): l is LeagueOption => l !== null);
-  const activeLeagueId = leagues.find((l) => l.id === league)?.id ?? leagues[0]?.id ?? null;
+  const active = leagues.find((l) => l.id === league) ?? leagues[0] ?? null;
+  const activeLeagueId = active?.id ?? null;
 
-  const [matches, settings] = await Promise.all([getMatchesCached(), getSettingsCached()]);
+  const matches = await getMatchesCached();
 
   const predMap: PredMap = {};
   if (activeLeagueId) {
@@ -43,9 +44,9 @@ export default async function PicksPage({ searchParams }: { searchParams: Promis
       predictions={predMap}
       leagues={leagues}
       activeLeagueId={activeLeagueId}
-      submissionMode={settings?.submission_mode === "single" ? "single" : "multiple"}
-      exactPts={settings?.points_exact ?? 3}
-      outcomePts={settings?.points_outcome ?? 1}
+      submissionMode={active?.submission_mode === "single" ? "single" : "multiple"}
+      exactPts={active?.points_exact ?? 3}
+      outcomePts={active?.points_outcome ?? 1}
     />
   );
 }

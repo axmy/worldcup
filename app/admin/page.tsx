@@ -23,7 +23,7 @@ export default async function AdminPage() {
     supabase.from("leaderboard").select("*").order("total_points", { ascending: false }),
     supabase
       .from("leagues")
-      .select("id, name, join_code, created_by, created_at, league_members(count)")
+      .select("id, name, join_code, created_by, created_at, points_exact, points_outcome, submission_mode, is_global, league_members(count)")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -36,6 +36,10 @@ export default async function AdminPage() {
     join_code: l.join_code,
     created_by: l.created_by,
     created_at: l.created_at,
+    points_exact: l.points_exact,
+    points_outcome: l.points_outcome,
+    submission_mode: l.submission_mode,
+    is_global: l.is_global,
     member_count: l.league_members?.[0]?.count ?? 0,
   }));
 
