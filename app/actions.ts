@@ -206,11 +206,9 @@ export async function signOut() {
 
 export async function submitPrediction(formData: FormData) {
   const matchId = String(formData.get("match_id"));
-  const leagueId = String(formData.get("league_id"));
   const home = Number(formData.get("home_score"));
   const away = Number(formData.get("away_score"));
 
-  if (!leagueId) return { error: "Pick a league before predicting." };
   if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
     return { error: "Scores must be whole numbers ≥ 0." };
   }
@@ -221,24 +219,23 @@ export async function submitPrediction(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
+  // One prediction per user per match — it counts toward every league they join.
   const { error } = await supabase.from("predictions").upsert(
     {
       user_id: user.id,
-      league_id: leagueId,
       match_id: matchId,
       home_score: home,
       away_score: away,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "user_id,league_id,match_id" },
+    { onConflict: "user_id,match_id" },
   );
 
   if (error) {
-    // RLS rejection surfaces here: deadline passed, not a member of the league,
-    // or a re-submit while the tournament is in "single submission" mode.
+    // RLS rejection: the deadline passed, or edits are off (single-submission mode).
     return {
       error:
-        "Could not save — the deadline may have passed, or this pool only allows one submission per match.",
+        "Could not save — the deadline may have passed, or edits are locked (single-submission mode).",
     };
   }
   revalidatePath("/matches");

@@ -18,14 +18,12 @@ const PRESETS: Pred[] = [
 export function PredictSheet({
   match,
   pred,
-  leagueId,
   submissionMode,
   onClose,
   onDone,
 }: {
   match: Match;
   pred?: Pred;
-  leagueId: string;
   submissionMode: "single" | "multiple";
   onClose: () => void;
   onDone: (msg: string) => void;
@@ -52,7 +50,6 @@ export function PredictSheet({
     setError(null);
     const fd = new FormData();
     fd.set("match_id", match.id);
-    fd.set("league_id", leagueId);
     fd.set("home_score", String(a));
     fd.set("away_score", String(b));
     startTransition(async () => {

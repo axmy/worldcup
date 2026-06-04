@@ -8,7 +8,6 @@ import { Countdown, Empty, Icon, ScreenHead, SectionLabel, dayKey, fmtDay, match
 import { flagEmoji } from "@/lib/flags";
 import { MatchCard, type Pred } from "@/components/MatchCard";
 import { PredictSheet } from "@/components/PredictSheet";
-import { LeagueSwitcher, type LeagueOption } from "@/components/LeagueSwitcher";
 
 export type PredMap = Record<string, Pred>;
 
@@ -106,16 +105,12 @@ const FILTERS: [string, string][] = [
 export function MatchesScreen({
   matches,
   predictions,
-  leagues,
-  activeLeagueId,
   submissionMode,
   exactPts,
   outcomePts,
 }: {
   matches: Match[];
   predictions: PredMap;
-  leagues: LeagueOption[];
-  activeLeagueId: string | null;
   submissionMode: "single" | "multiple";
   exactPts: number;
   outcomePts: number;
@@ -152,22 +147,11 @@ export function MatchesScreen({
     router.refresh();
   }
 
-  if (!activeLeagueId) {
-    return (
-      <div className="screen-enter">
-        <ScreenHead title="Matches" />
-        <NoLeague />
-      </div>
-    );
-  }
-
   return (
     <div className="screen-enter">
       <ScreenHead title="Matches" sub={`${openCount} open for predictions · times in Maldives time (MVT)`} />
 
       <WorldCupRibbon />
-
-      <LeagueSwitcher leagues={leagues} activeId={activeLeagueId} />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", paddingBottom: 2 }}>
         {FILTERS.map(([k, label]) => (
@@ -212,7 +196,6 @@ export function MatchesScreen({
         <PredictSheet
           match={sheet}
           pred={predictions[sheet.id]}
-          leagueId={activeLeagueId}
           submissionMode={submissionMode}
           onClose={() => setSheet(null)}
           onDone={done}

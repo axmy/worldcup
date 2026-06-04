@@ -6,8 +6,7 @@ import type { Match } from "@/lib/types";
 import { Empty, ScreenHead, SectionLabel, matchStatus, useNow } from "@/components/ui";
 import { MatchCard } from "@/components/MatchCard";
 import { PredictSheet } from "@/components/PredictSheet";
-import { Toast, NoLeague, type PredMap } from "@/components/MatchesScreen";
-import { LeagueSwitcher, type LeagueOption } from "@/components/LeagueSwitcher";
+import { Toast, type PredMap } from "@/components/MatchesScreen";
 
 function StatTile({ big, label, accent }: { big: number; label: string; accent?: boolean }) {
   return (
@@ -33,16 +32,12 @@ function StatTile({ big, label, accent }: { big: number; label: string; accent?:
 export function MyPicksScreen({
   matches,
   predictions,
-  leagues,
-  activeLeagueId,
   submissionMode,
   exactPts,
   outcomePts,
 }: {
   matches: Match[];
   predictions: PredMap;
-  leagues: LeagueOption[];
-  activeLeagueId: string | null;
   submissionMode: "single" | "multiple";
   exactPts: number;
   outcomePts: number;
@@ -97,20 +92,9 @@ export function MyPicksScreen({
       </div>
     );
 
-  if (!activeLeagueId) {
-    return (
-      <div className="screen-enter">
-        <ScreenHead title="My Picks" />
-        <NoLeague />
-      </div>
-    );
-  }
-
   return (
     <div className="screen-enter">
       <ScreenHead title="My Picks" sub={`${mine.length} prediction${mine.length === 1 ? "" : "s"} submitted`} />
-
-      <LeagueSwitcher leagues={leagues} activeId={activeLeagueId} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 22 }}>
         <StatTile big={stats.points} label="POINTS" accent />
@@ -124,7 +108,7 @@ export function MyPicksScreen({
       {mine.length === 0 && <Empty icon="ticket" text="You haven't made any predictions yet." />}
 
       {sheet && (
-        <PredictSheet match={sheet} pred={predictions[sheet.id]} leagueId={activeLeagueId} submissionMode={submissionMode} onClose={() => setSheet(null)} onDone={done} />
+        <PredictSheet match={sheet} pred={predictions[sheet.id]} submissionMode={submissionMode} onClose={() => setSheet(null)} onDone={done} />
       )}
       {toast && <Toast msg={toast} />}
     </div>
