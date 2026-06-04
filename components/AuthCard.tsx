@@ -3,13 +3,12 @@
 import { useActionState, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { login, register, verifyEmailOtp, resendEmailOtp, signInWithGoogle } from "@/app/actions";
-import { Brand, Countdown, Crest, Icon } from "@/components/ui";
+import { Brand, Crest, Icon } from "@/components/ui";
+import { KickoffCountdown } from "@/components/KickoffCountdown";
 import { flagEmoji } from "@/lib/flags";
 
 type AuthState = { error?: string; step?: "verify"; email?: string } | undefined;
 
-// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City.
-const KICKOFF_MS = new Date("2026-06-11T19:00:00-06:00").getTime();
 const HOSTS = ["Mexico", "United States", "Canada"];
 
 const HERO_TEAMS: [string, number, number, number, number, number][] = [
@@ -192,12 +191,8 @@ export function AuthCard({
             </p>
 
             {/* Kickoff countdown */}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 11, marginTop: 24, padding: "10px 16px", borderRadius: 14, background: "color-mix(in oklab, var(--bg) 45%, transparent)", border: "1px solid var(--line-soft)" }}>
-              <Icon name="trophy" size={20} style={{ color: "oklch(0.78 0.18 140)" }} />
-              <div>
-                <div className="display" style={{ fontSize: 9, letterSpacing: ".16em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>Kickoff in</div>
-                <Countdown to={KICKOFF_MS} style={{ fontSize: 19, fontWeight: 800, color: "var(--text)" }} />
-              </div>
+            <div style={{ marginTop: 26 }}>
+              <KickoffCountdown compact />
             </div>
           </div>
 

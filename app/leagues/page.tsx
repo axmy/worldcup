@@ -51,5 +51,7 @@ export default async function LeaguesPage() {
   // Sort the global league first so it's always the obvious entry point.
   leagues.sort((a, b) => Number(b.is_global) - Number(a.is_global));
 
-  return <LeaguesScreen leagues={leagues} meId={userId} />;
+  const inGlobal = leagues.some((l) => l.is_global);
+
+  return <LeaguesScreen leagues={leagues} meId={userId} inGlobal={inGlobal} />;
 }

@@ -74,13 +74,13 @@ export function LeagueHeader({
           </Link>
         )}
 
-        {!isOwner && !isGlobal && (
+        {!isOwner && (
           <form action={leaveLeague}>
             <input type="hidden" name="league_id" value={leagueId} />
             <button
               type="submit"
               className="btn-ghost tap"
-              title="Leave league"
+              title={isGlobal ? "Leave the global leaderboard" : "Leave league"}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, color: "var(--text-faint)" }}
             >
               <Icon name="x" size={14} /> Leave

@@ -3,7 +3,7 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { LeaderboardRow, LeagueSummary, Match } from "@/lib/types";
-import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, deleteLeague } from "@/app/actions";
+import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, deleteLeague, importFixtures, syncResultsNow, resetData, seedFixtures, clearScores, clearPredictions, removeLeagues, removePlayers } from "@/app/actions";
 import {
   Avatar,
   Countdown,
@@ -57,7 +57,7 @@ const lab: CSSProperties = { fontSize: 11.5, fontWeight: 700, letterSpacing: ".0
 
 export function AdminScreen({ matches, settings, players, leagues, leagueCounts, totalUsers }: { matches: Match[]; settings: Settings; players: LeaderboardRow[]; leagues: LeagueSummary[]; leagueCounts: Record<string, number>; totalUsers: number }) {
   const now = useNow(1000) ?? Date.now();
-  const [tab, setTab] = useState<"fixtures" | "results" | "leagues" | "players" | "settings">("fixtures");
+  const [tab, setTab] = useState<"fixtures" | "results" | "leagues" | "players" | "settings" | "ops">("fixtures");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Match | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -78,6 +78,7 @@ export function AdminScreen({ matches, settings, players, leagues, leagueCounts,
     ["leagues", "Leagues"],
     ["players", "Players"],
     ["settings", "Settings"],
+    ["ops", "Ops"],
   ];
 
   return (
@@ -103,11 +104,12 @@ export function AdminScreen({ matches, settings, players, leagues, leagueCounts,
         ))}
       </div>
 
-      {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onEdit={setEditing} onDeleted={() => flash("Fixture deleted")} />}
-      {tab === "results" && <Results matches={matches} now={now} onPublished={() => flash("Result published — players scored")} />}
+      {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onEdit={setEditing} onDeleted={() => flash("Fixture deleted")} onFlash={flash} />}
+      {tab === "results" && <Results matches={matches} now={now} onPublished={() => flash("Result published — players scored")} onFlash={flash} />}
       {tab === "leagues" && <Leagues leagues={leagues} onDeleted={() => flash("League deleted")} />}
       {tab === "players" && <Players players={players} leagueCounts={leagueCounts} totalUsers={totalUsers} />}
       {tab === "settings" && <SettingsForm settings={settings} onSaved={() => flash("Settings saved")} />}
+      {tab === "ops" && <Ops onFlash={flash} />}
 
       {(creating || editing) && (
         <MatchSheet
@@ -125,9 +127,9 @@ export function AdminScreen({ matches, settings, players, leagues, leagueCounts,
 const fmtWindow = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: TOURNAMENT_TZ });
 
-function Fixtures({ matches, now, onNew, onEdit, onDeleted }: { matches: Match[]; now: number; onNew: () => void; onEdit: (m: Match) => void; onDeleted: () => void }) {
+function Fixtures({ matches, now, onNew, onEdit, onDeleted, onFlash }: { matches: Match[]; now: number; onNew: () => void; onEdit: (m: Match) => void; onDeleted: () => void; onFlash: (msg: string) => void }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   function del(id: string) {
     const fd = new FormData();
@@ -139,11 +141,25 @@ function Fixtures({ matches, now, onNew, onEdit, onDeleted }: { matches: Match[]
     });
   }
 
+  function importNow() {
+    startTransition(async () => {
+      const res = await importFixtures();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(`Imported ${res.inserted} new, updated ${res.updated} fixtures`);
+      router.refresh();
+    });
+  }
+
   return (
     <div>
-      <button className="btn-sport tap" onClick={onNew} style={{ width: "100%", padding: "13px", borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "var(--font-display)", fontSize: 15, marginBottom: 16 }}>
-        <Icon name="plusC" size={18} stroke={2.4} /> Add fixture
-      </button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className="btn-sport tap" onClick={onNew} style={{ flex: 1, padding: "13px", borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "var(--font-display)", fontSize: 15 }}>
+          <Icon name="plusC" size={18} stroke={2.4} /> Add fixture
+        </button>
+        <button className="btn-ghost tap" onClick={importNow} disabled={isPending} title="Import the schedule from API-Football" style={{ padding: "0 16px", borderRadius: 13, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+          <Icon name="cal" size={16} /> {isPending ? "Importing…" : "Import"}
+        </button>
+      </div>
       {matches.length === 0 && <Empty icon="cal" text="No fixtures yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {matches.map((m) => {
@@ -244,11 +260,26 @@ function ResultEntry({ match, onPublished }: { match: Match; onPublished: () => 
   );
 }
 
-function Results({ matches, now, onPublished }: { matches: Match[]; now: number; onPublished: () => void }) {
+function Results({ matches, now, onPublished, onFlash }: { matches: Match[]; now: number; onPublished: () => void; onFlash: (msg: string) => void }) {
+  const router = useRouter();
+  const [syncing, startSync] = useTransition();
   const pending = matches.filter((m) => matchStatus(m, now) === "locked");
   const done = matches.filter((m) => m.home_score !== null && m.away_score !== null);
+
+  function syncNow() {
+    startSync(async () => {
+      const res = await syncResultsNow();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(res.updated > 0 ? `Synced ${res.updated} result${res.updated === 1 ? "" : "s"}` : "No new finished matches");
+      router.refresh();
+    });
+  }
+
   return (
     <div>
+      <button className="btn-ghost tap" onClick={syncNow} disabled={syncing} title="Fetch final scores from API-Football now" style={{ width: "100%", padding: "11px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-dim)", marginBottom: 16 }}>
+        <Icon name="bolt" size={16} stroke={2.4} /> {syncing ? "Syncing…" : "Sync results now"}
+      </button>
       <SectionLabel>Awaiting result · {pending.length}</SectionLabel>
       {pending.length === 0 && <Empty icon="check" text="No matches awaiting a result." />}
       <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 24 }}>
@@ -489,6 +520,136 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
         {isPending ? "Saving…" : "Save settings"}
       </button>
     </form>
+  );
+}
+
+/* ── OPS (maintenance) ── */
+function Ops({ onFlash }: { onFlash: (msg: string) => void }) {
+  const router = useRouter();
+  const [busy, startTransition] = useTransition();
+  const [confirm, setConfirm] = useState("");
+
+  function seedBuiltIn() {
+    startTransition(async () => {
+      const res = await seedFixtures();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) {
+        const n = res.inserted ?? 0;
+        onFlash(n > 0 ? `Seeded ${n} fixtures` : "Fixtures already exist — reset first");
+      }
+      router.refresh();
+    });
+  }
+
+  function seed() {
+    startTransition(async () => {
+      const res = await importFixtures();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(`Imported ${res.inserted} new, updated ${res.updated} fixtures`);
+      router.refresh();
+    });
+  }
+
+  function sync() {
+    startTransition(async () => {
+      const res = await syncResultsNow();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(res.updated > 0 ? `Synced ${res.updated} result${res.updated === 1 ? "" : "s"}` : "No new finished matches");
+      router.refresh();
+    });
+  }
+
+  function reset() {
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("confirm", confirm);
+      const res = await resetData(fd);
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else {
+        setConfirm("");
+        onFlash("Data reset — re-seed fixtures to start over");
+      }
+      router.refresh();
+    });
+  }
+
+  // Targeted resets, each behind a confirm() dialog.
+  function run(label: string, prompt: string, fn: () => Promise<{ error?: string; count?: number; ok?: boolean }>) {
+    if (!window.confirm(prompt)) return;
+    startTransition(async () => {
+      const res = await fn();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else onFlash(`${label}: ${res.count ?? 0}`);
+      router.refresh();
+    });
+  }
+
+  const card: CSSProperties = { border: "1px solid var(--line-soft)", borderRadius: 14, padding: 16, background: "var(--bg-2)", boxShadow: "var(--shadow)", display: "flex", flexDirection: "column", gap: 10 };
+  const dangerBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 13px", borderRadius: 10, fontSize: 13, color: "var(--neg)", border: "1px solid color-mix(in oklab, var(--neg) 35%, var(--line-soft))" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={card}>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Seed fixtures</div>
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>Load the schedule after a reset — 72 group fixtures with real times plus 32 knockout placeholders (closed; edit teams/times as results come in). No API needed; the API import also fills in provider ids for auto-scoring.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button className="btn-sport tap" onClick={seedBuiltIn} disabled={busy} style={{ padding: "10px 18px", borderRadius: 11, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Icon name="cal" size={16} /> {busy ? "Working…" : "Seed built-in schedule"}
+          </button>
+          <button className="btn-ghost tap" onClick={seed} disabled={busy} title="Requires API-Football key" style={{ padding: "10px 16px", borderRadius: 11, fontSize: 13.5, color: "var(--text-dim)", display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <Icon name="bolt" size={15} /> Import from API
+          </button>
+        </div>
+      </div>
+
+      <div style={card}>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Update scores</div>
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>Fetch final scores for matches that have finished and score everyone. Runs automatically on a schedule too.</p>
+        <button className="btn-sport tap" onClick={sync} disabled={busy} style={{ alignSelf: "flex-start", padding: "10px 18px", borderRadius: 11, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Icon name="bolt" size={16} stroke={2.4} /> {busy ? "Working…" : "Sync results now"}
+        </button>
+      </div>
+
+      <div style={card}>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Targeted resets</div>
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>Each clears just one thing. All keep the admin account and the global league.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button className="btn-ghost tap" disabled={busy} onClick={() => run("Scores cleared", "Clear all match scores? Predictions stay but become unscored.", clearScores)} style={dangerBtn}>
+            <Icon name="x" size={14} /> Clear scores
+          </button>
+          <button className="btn-ghost tap" disabled={busy} onClick={() => run("Predictions deleted", "Delete ALL predictions for every league?", clearPredictions)} style={dangerBtn}>
+            <Icon name="trash" size={14} /> Delete predictions
+          </button>
+          <button className="btn-ghost tap" disabled={busy} onClick={() => run("Leagues deleted", "Delete all user-created leagues (the global league is kept)?", removeLeagues)} style={dangerBtn}>
+            <Icon name="trophy" size={14} /> Delete leagues
+          </button>
+          <button className="btn-ghost tap" disabled={busy} onClick={() => run("Players removed", "Remove ALL players? This deletes every non-admin account, their predictions and memberships. Cannot be undone.", removePlayers)} style={dangerBtn}>
+            <Icon name="user" size={14} /> Remove players
+          </button>
+        </div>
+      </div>
+
+      <div style={{ ...card, border: "1px solid color-mix(in oklab, var(--neg) 40%, var(--line-soft))" }}>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--neg)", textTransform: "uppercase" }}>Danger zone · reset everything</div>
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>
+          Deletes <b>all predictions, results, user-created leagues and fixtures</b>. Keeps user accounts and the global league. This cannot be undone.
+        </p>
+        <input
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="Type RESET to confirm"
+          style={{ ...sel, maxWidth: 260 }}
+        />
+        <button
+          onClick={reset}
+          disabled={busy || confirm !== "RESET"}
+          className="tap"
+          style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "color-mix(in oklab, var(--neg) 16%, transparent)", color: "var(--neg)", border: "1px solid color-mix(in oklab, var(--neg) 40%, transparent)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "var(--font-display)", opacity: confirm === "RESET" && !busy ? 1 : 0.5 }}
+        >
+          <Icon name="trash" size={15} /> {busy ? "Resetting…" : "Reset all data"}
+        </button>
+      </div>
+    </div>
   );
 }
 

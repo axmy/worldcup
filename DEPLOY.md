@@ -25,6 +25,14 @@ supabase db push
 This applies all migrations (and seeds the 72 WC2026 fixtures + the predefined
 admin). Re-run `supabase db push` after adding any new migration.
 
+> **Auto-apply on deploy.** `.github/workflows/db-migrations.yml` runs
+> `supabase db push` automatically whenever a push to `main` changes
+> `supabase/migrations/**` — so migrations go live alongside the Vercel build,
+> no manual step. One-time: add repo secrets `SUPABASE_ACCESS_TOKEN`,
+> `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF` (Settings → Secrets and
+> variables → Actions). You can also trigger it manually from the Actions tab.
+> Vercel itself only builds the frontend — it does **not** run migrations.
+
 ### Migration reference
 
 | File | What it does |
@@ -149,10 +157,29 @@ The app reads only these at runtime:
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://xfwbnyqimrytrjutfbuu.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the project's anon/public key |
 | `NEXT_PUBLIC_SITE_URL` *(recommended)* | `https://scorepredict.xyz` — forces the canonical origin for OAuth/reset redirect URLs, the **social share links**, and the absolute **Open Graph / Twitter preview image** URL. Without it, share links and the OG image fall back to the request host (or localhost), so previews won't unfurl correctly. |
+| `API_FOOTBALL_KEY` *(for auto-results)* | api-sports.io key. |
+| `API_FOOTBALL_LEAGUE` / `API_FOOTBALL_SEASON` | Competition id + season (e.g. World Cup, `2026`). **Verify the league id** in the API-Football dashboard. |
+| `SUPABASE_SERVICE_ROLE_KEY` *(for auto-results)* | Service-role key from the Supabase dashboard. **Bypasses RLS — server-only**, never expose to the client. Used by the results-sync cron to write scores. |
+| `CRON_SECRET` | Long random string. Vercel sends it as `Authorization: Bearer <CRON_SECRET>` to the cron route; the route rejects anything else. |
 
 > The `SUPABASE_AUTH_EXTERNAL_GOOGLE_*` vars in `.env.local` are **local-only**
 > (`supabase start`). Production Google creds go in the Supabase dashboard (2b),
 > not Vercel.
+
+### 3b-bis. Automated results (API-Football → auto-score)
+Once results are written to a match, the DB scores all predictions automatically.
+`vercel.json` schedules `/api/cron/sync-results` (`*/5 * * * *`) to fetch finished
+matches from API-Football and write their scores.
+
+- **Map fixtures first:** in Admin → Fixtures, click **Import** to pull the schedule
+  (teams, kickoff times, provider ids). Results sync only touches fixtures that have a
+  provider id.
+- **Vercel plan:** Hobby runs crons **once/day** only. For live-day polling use **Vercel
+  Pro** (sub-daily crons), or trigger Admin → Results → **"Sync results now"**, or point an
+  external scheduler (cron-job.org / GitHub Actions) at the route with the `CRON_SECRET`
+  bearer header.
+- **API quota:** the route makes **no** provider call when no match is in play, so usage
+  stays near zero outside match windows (fits the free tier).
 
 ### 3b. Region  (`vercel.json`)
 `vercel.json` pins serverless functions to a region — put them **next to the

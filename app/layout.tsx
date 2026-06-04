@@ -86,10 +86,26 @@ export default async function RootLayout({
   let isAdmin = false;
   let points = 0;
   if (userId) {
-    const [{ data: profile }, { data: board }] = await Promise.all([
-      supabase.from("profiles").select("display_name, is_admin").eq("id", userId).single(),
-      supabase.from("leaderboard").select("total_points").eq("user_id", userId).single(),
-    ]);
+    let { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, is_admin")
+      .eq("id", userId)
+      .single();
+    // Self-heal: a signed-in user with no profile was orphaned at signup (DB
+    // trigger didn't fire). Create the profile + global membership, then re-read.
+    if (!profile) {
+      await supabase.rpc("ensure_self");
+      ({ data: profile } = await supabase
+        .from("profiles")
+        .select("display_name, is_admin")
+        .eq("id", userId)
+        .single());
+    }
+    const { data: board } = await supabase
+      .from("leaderboard")
+      .select("total_points")
+      .eq("user_id", userId)
+      .single();
     displayName = profile?.display_name ?? null;
     isAdmin = !!profile?.is_admin;
     points = board?.total_points ?? 0;
