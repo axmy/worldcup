@@ -468,8 +468,13 @@ export function SectionLabel({ children, right }: { children: ReactNode; right?:
 /* ── Points badge ── */
 export function PointsBadge({ pts, exactPts = 3 }: { pts: number | null; exactPts?: number }) {
   if (pts == null) return null;
-  const c = pts === exactPts ? "var(--accent)" : pts > 0 ? "var(--pos)" : "var(--text-faint)";
-  const bg = pts > 0 ? `color-mix(in oklab, ${c} 16%, transparent)` : "var(--bg-3)";
+  const exact = pts > 0 && pts === exactPts;
+  const positive = pts > 0;
+  // Exact = solid accent pill (white text + glow); outcome = bold green pill with
+  // a border; zero = neutral. Higher contrast so it reads on the dark card.
+  const fg = exact ? "var(--accent-ink)" : positive ? "var(--pos)" : "var(--text-faint)";
+  const bg = exact ? "var(--accent)" : positive ? "color-mix(in oklab, var(--pos) 22%, transparent)" : "var(--bg-3)";
+  const border = exact ? "transparent" : positive ? "color-mix(in oklab, var(--pos) 55%, transparent)" : "var(--line-soft)";
   return (
     <span
       className="num"
@@ -477,17 +482,19 @@ export function PointsBadge({ pts, exactPts = 3 }: { pts: number | null; exactPt
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        padding: "3px 9px",
+        padding: "4px 10px",
         borderRadius: 8,
         background: bg,
-        color: c,
+        color: fg,
+        border: `1px solid ${border}`,
         fontWeight: 800,
         fontSize: 13,
         fontFamily: "var(--font-display)",
+        boxShadow: exact ? "var(--glow-accent)" : "none",
       }}
     >
       {pts > 0 ? "+" : ""}
-      {pts} <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 700 }}>PT{pts === 1 ? "" : "S"}</span>
+      {pts} <span style={{ fontSize: 10, opacity: 0.85, fontWeight: 700 }}>PT{pts === 1 ? "" : "S"}</span>
     </span>
   );
 }
