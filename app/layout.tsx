@@ -20,13 +20,33 @@ const fontScore = Saira_Condensed({
   variable: "--font-score-next",
 });
 
-// Title follows the configured brand name (white-label).
+// Title + social preview follow the configured brand name (white-label). The
+// opengraph-image / twitter-image files supply the preview image automatically;
+// metadataBase makes that image URL absolute for crawlers.
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettingsCached();
   const name = settings?.brand_name ?? "Kickoff";
+  const title = `${name} — World Cup 2026 Score Predictor`;
+  const description =
+    "Predict every match of the World Cup 2026, create private leagues with friends, and climb the global leaderboard.";
+  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+
   return {
-    title: `${name} — Score Predictor`,
-    description: "Predict the score of every match before the whistle blows.",
+    metadataBase: base ? new URL(base) : null,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      siteName: name,
+      type: "website",
+      ...(base ? { url: base } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
   };
 }
 

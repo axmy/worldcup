@@ -3,7 +3,7 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { LeaderboardRow, LeagueSummary, Match } from "@/lib/types";
-import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, createLeague, deleteLeague } from "@/app/actions";
+import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, deleteLeague } from "@/app/actions";
 import {
   Avatar,
   Countdown,
@@ -104,7 +104,7 @@ export function AdminScreen({ matches, settings, players, leagues }: { matches: 
 
       {tab === "fixtures" && <Fixtures matches={matches} now={now} onNew={() => setCreating(true)} onEdit={setEditing} onDeleted={() => flash("Fixture deleted")} />}
       {tab === "results" && <Results matches={matches} now={now} onPublished={() => flash("Result published — players scored")} />}
-      {tab === "leagues" && <Leagues leagues={leagues} onCreated={() => flash("League created")} onDeleted={() => flash("League deleted")} />}
+      {tab === "leagues" && <Leagues leagues={leagues} onDeleted={() => flash("League deleted")} />}
       {tab === "players" && <Players players={players} />}
       {tab === "settings" && <SettingsForm settings={settings} onSaved={() => flash("Settings saved")} />}
 
@@ -316,29 +316,11 @@ function CopyCode({ code }: { code: string }) {
   );
 }
 
-function Leagues({ leagues, onCreated, onDeleted }: { leagues: LeagueSummary[]; onCreated: () => void; onDeleted: () => void }) {
+// Organizers create & manage their own leagues now; Admin keeps a read-only
+// roster with a delete for moderation. (The global league can't be deleted.)
+function Leagues({ leagues, onDeleted }: { leagues: LeagueSummary[]; onDeleted: () => void }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  function create() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setError(null);
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set("name", trimmed);
-      const res = await createLeague(fd);
-      if (res && "error" in res && res.error) {
-        setError(res.error);
-        return;
-      }
-      setName("");
-      router.refresh();
-      onCreated();
-    });
-  }
 
   function del(id: string) {
     startTransition(async () => {
@@ -352,33 +334,29 @@ function Leagues({ leagues, onCreated, onDeleted }: { leagues: LeagueSummary[]; 
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && create()}
-          placeholder="New league name"
-          style={sel}
-        />
-        <button className="btn-sport tap" disabled={!name.trim() || isPending} onClick={create} style={{ borderRadius: 10, padding: "0 18px", whiteSpace: "nowrap", opacity: name.trim() && !isPending ? 1 : 0.5 }}>
-          {isPending ? "…" : "Create"}
-        </button>
-      </div>
-      {error && <p style={{ color: "var(--neg)", fontSize: 12.5, margin: "-10px 2px 14px" }}>{error}</p>}
-
-      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{leagues.length} total</span>}>Leagues</SectionLabel>
-      {leagues.length === 0 && <Empty icon="trophy" text="No leagues yet. Create one and share its join code." />}
+      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{leagues.length} total</span>}>All leagues · moderation</SectionLabel>
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", margin: "-4px 2px 14px" }}>
+        Players create and run their own leagues. Remove one here only for moderation.
+      </p>
+      {leagues.length === 0 && <Empty icon="trophy" text="No leagues yet." />}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {leagues.map((l) => (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--bg-2)", border: "1px solid var(--line-soft)", borderRadius: 14, padding: "12px 14px", boxShadow: "var(--shadow)" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="display" style={{ fontSize: 15.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.name}</div>
-              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 2 }}>{l.member_count} member{l.member_count === 1 ? "" : "s"}</div>
+              <div className="display" style={{ fontSize: 15.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {l.name}
+                {l.is_global && <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 800, letterSpacing: ".1em", color: "var(--accent)" }}>GLOBAL</span>}
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 2 }}>
+                {l.member_count} member{l.member_count === 1 ? "" : "s"} · {l.points_exact}/{l.points_outcome} pts · {l.submission_mode}
+              </div>
             </div>
             <CopyCode code={l.join_code} />
-            <button className="chip tap" onClick={() => del(l.id)} title="Delete league" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 9px", borderRadius: 9, border: "1px solid var(--line-soft)", color: "var(--neg)", fontSize: 12 }}>
-              <Icon name="trash" size={13} />
-            </button>
+            {!l.is_global && (
+              <button className="chip tap" onClick={() => del(l.id)} disabled={isPending} title="Delete league" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 9px", borderRadius: 9, border: "1px solid var(--line-soft)", color: "var(--neg)", fontSize: 12 }}>
+                <Icon name="trash" size={13} />
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -442,7 +420,7 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
       {/* ── Branding (white-label) ── */}
       {/* ── Branding (white-label) ── */}
       <div style={{ border: "1px solid var(--line-soft)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Branding · shown on the login page &amp; header</div>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Branding · shown on the landing, login &amp; header</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
             <label style={lab}>BRAND NAME</label>
@@ -463,36 +441,38 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
         </div>
       </div>
 
-      <div>
-        <label style={lab}>SUBMISSION RULE</label>
-        <select name="submission_mode" defaultValue={settings.submission_mode} style={sel}>
-          <option value="multiple">Multiple — edit picks freely until the deadline</option>
-          <option value="single">Single — first pick locks, no edits</option>
-        </select>
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
-          Enforced by the database: in single mode a player gets exactly one prediction per match.
+      <div style={{ border: "1px solid var(--line-soft)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>
+          Defaults for new leagues
+        </div>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", margin: "-4px 0 0" }}>
+          Each league now carries its own scoring &amp; rules; organizers can override these when creating a league. These values seed new leagues (and the global competition).
         </p>
+
+        <div>
+          <label style={lab}>SUBMISSION RULE</label>
+          <select name="submission_mode" defaultValue={settings.submission_mode} style={sel}>
+            <option value="multiple">Multiple — edit picks freely until the deadline</option>
+            <option value="single">Single — first pick locks, no edits</option>
+          </select>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={lab}>POINTS · EXACT SCORE</label>
+            <input name="points_exact" type="number" min={0} defaultValue={settings.points_exact} style={sel} />
+          </div>
+          <div>
+            <label style={lab}>POINTS · CORRECT RESULT</label>
+            <input name="points_outcome" type="number" min={0} defaultValue={settings.points_outcome} style={sel} />
+          </div>
+        </div>
       </div>
 
       <div>
         <label style={lab}>TOURNAMENT TIMEZONE (IANA)</label>
         <input name="tournament_timezone" defaultValue={settings.tournament_timezone} placeholder="Indian/Maldives" style={sel} />
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div>
-          <label style={lab}>POINTS · EXACT SCORE</label>
-          <input name="points_exact" type="number" min={0} defaultValue={settings.points_exact} style={sel} />
-        </div>
-        <div>
-          <label style={lab}>POINTS · CORRECT RESULT</label>
-          <input name="points_outcome" type="number" min={0} defaultValue={settings.points_outcome} style={sel} />
-        </div>
-      </div>
-
-      <p style={{ fontSize: 11.5, color: "var(--warn)" }}>
-        Changing points only affects matches scored after the change. Re-publish a result to recompute it.
-      </p>
 
       <button type="submit" disabled={isPending} className="btn-sport tap" style={{ width: "100%", padding: "13px", borderRadius: 13, fontFamily: "var(--font-display)", fontSize: 15, opacity: isPending ? 0.6 : 1 }}>
         {isPending ? "Saving…" : "Save settings"}

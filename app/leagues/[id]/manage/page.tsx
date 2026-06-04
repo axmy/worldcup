@@ -1,0 +1,47 @@
+import { redirect } from "next/navigation";
+import { createClient, getUserId } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/site";
+import { ManageLeagueScreen, type ManageLeague, type ManageMember } from "@/components/ManageLeagueScreen";
+
+export const dynamic = "force-dynamic";
+
+type MemberRow = { user_id: string; profiles: { display_name: string } | null };
+
+export default async function ManageLeaguePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const userId = (await getUserId(supabase))!;
+
+  // RLS returns the league only to members/admins; managing requires ownership.
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id, name, join_code, created_by, is_global, points_exact, points_outcome, submission_mode")
+    .eq("id", id)
+    .single();
+
+  if (!league) redirect("/leagues");
+
+  // Only the owner (or a super-admin) may manage; everyone else goes to standings.
+  const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", userId).single();
+  const isOwner = league.created_by === userId || !!profile?.is_admin;
+  if (!isOwner) redirect(`/leagues/${id}`);
+
+  const { data: memberRows } = await supabase
+    .from("league_members")
+    .select("user_id, profiles(display_name)")
+    .eq("league_id", id);
+
+  const members: ManageMember[] = ((memberRows as MemberRow[] | null) ?? []).map((m) => ({
+    user_id: m.user_id,
+    display_name: m.profiles?.display_name ?? "Player",
+  }));
+  // Owner first, then alphabetical.
+  members.sort((a, b) =>
+    Number(b.user_id === league.created_by) - Number(a.user_id === league.created_by) ||
+    a.display_name.localeCompare(b.display_name),
+  );
+
+  const shareUrl = await getSiteUrl();
+
+  return <ManageLeagueScreen league={league as ManageLeague} members={members} shareUrl={shareUrl} />;
+}

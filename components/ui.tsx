@@ -5,7 +5,7 @@
 // real data model (teams are free-text names rather than fixed codes).
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import type { Match } from "@/lib/types";
-import { flagEmoji } from "@/lib/flags";
+import { flagUrl } from "@/lib/flags";
 
 /* ── Team helpers: derive a short code + stable color from a team name ── */
 export function teamCode(name: string) {
@@ -174,47 +174,48 @@ export function Icon({
   );
 }
 
-/* ── Team crest: country flag on a team-hued gradient, else a code disc ── */
+/* ── Team crest: full-bleed country flag image, else a code disc ── */
 export function Crest({ name, size = 44 }: { name: string; size?: number }) {
-  const flag = flagEmoji(name);
+  const url = flagUrl(name, Math.ceil(size * 2));
   const hue = hueOf(name);
-  if (flag) {
-    const c = `oklch(0.6 0.16 ${hue})`;
+  if (url) {
     return (
       <div
         style={{
           width: size,
           height: size,
           borderRadius: size * 0.3,
-          background: `linear-gradient(150deg, ${c}, color-mix(in oklab, ${c} 42%, #000))`,
-          display: "grid",
-          placeItems: "center",
           flexShrink: 0,
           overflow: "hidden",
           position: "relative",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.28), 0 2px 6px rgba(0,0,0,.32)",
+          background: "#0b0b0c",
+          boxShadow:
+            "inset 0 0 0 1px rgba(255,255,255,.14), 0 2px 6px rgba(0,0,0,.32)",
         }}
         aria-label={name}
       >
+        <img
+          src={url}
+          alt={name}
+          width={size}
+          height={size}
+          loading="lazy"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: "radial-gradient(circle at 30% 18%, rgba(255,255,255,.32), transparent 62%)",
+            pointerEvents: "none",
+            background:
+              "radial-gradient(circle at 30% 18%, rgba(255,255,255,.18), transparent 60%)",
           }}
         />
-        <span
-          style={{
-            fontSize: size * 0.6,
-            lineHeight: 1,
-            zIndex: 1,
-            filter: "drop-shadow(0 1px 2px rgba(0,0,0,.4))",
-            // Keep emoji glyphs colourful even where the system tints text.
-            fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-          }}
-        >
-          {flag}
-        </span>
       </div>
     );
   }

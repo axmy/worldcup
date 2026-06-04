@@ -145,6 +145,7 @@ const NAV: NavItem[] = [
   { href: "/matches", label: "Matches", icon: "list" },
   { href: "/picks", label: "My Picks", icon: "ticket" },
   { href: "/leagues", label: "Leagues", icon: "trophy" },
+  { href: "/leaderboard", label: "Global", icon: "flame" },
   { href: "/admin", label: "Admin", icon: "cog", adminOnly: true },
 ];
 
@@ -172,6 +173,7 @@ export function Chrome({
   const pathname = usePathname();
   const bare =
     !signedIn ||
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/auth") ||

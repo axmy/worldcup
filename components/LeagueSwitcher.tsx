@@ -3,7 +3,14 @@
 import { useRouter, usePathname } from "next/navigation";
 import { Icon } from "@/components/ui";
 
-export type LeagueOption = { id: string; name: string };
+export type LeagueOption = {
+  id: string;
+  name: string;
+  is_global?: boolean;
+  points_exact?: number;
+  points_outcome?: number;
+  submission_mode?: "single" | "multiple";
+};
 
 // Picks the league you're predicting in. Selecting one navigates to
 // ?league=<id>; the server re-fetches that league's picks for this user.

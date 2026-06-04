@@ -17,9 +17,9 @@ export function NoLeague() {
   return (
     <div style={{ textAlign: "center", padding: "46px 20px", color: "var(--text-faint)" }}>
       <Icon name="trophy" size={34} style={{ opacity: 0.5 }} />
-      <p style={{ marginTop: 12, fontSize: 14 }}>Join a league to start predicting — your picks are made per league.</p>
+      <p style={{ marginTop: 12, fontSize: 14 }}>Create your own league or join one to start predicting — picks are made per league.</p>
       <Link href="/leagues" className="btn-sport tap" style={{ display: "inline-flex", marginTop: 16, padding: "12px 22px", borderRadius: 12, textDecoration: "none", fontSize: 14.5, alignItems: "center", gap: 8 }}>
-        <Icon name="arrowR" size={17} stroke={2.4} /> Go to Leagues
+        <Icon name="arrowR" size={17} stroke={2.4} /> Create or join a league
       </Link>
     </div>
   );

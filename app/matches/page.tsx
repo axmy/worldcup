@@ -1,5 +1,5 @@
 import { createClient, getUserId } from "@/lib/supabase/server";
-import { getMatchesCached, getSettingsCached } from "@/lib/data";
+import { getMatchesCached } from "@/lib/data";
 import { MatchesScreen, type PredMap } from "@/components/MatchesScreen";
 import type { LeagueOption } from "@/components/LeagueSwitcher";
 import type { Prediction } from "@/lib/types";
@@ -7,7 +7,8 @@ import type { Prediction } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 // Resolve the user's leagues and the one they're currently viewing (?league=),
-// defaulting to their first. Predictions are scoped to that league.
+// defaulting to their first. Predictions AND scoring rules are scoped to that
+// league (each league carries its own points/submission mode).
 async function resolveLeagues(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -15,7 +16,7 @@ async function resolveLeagues(
 ) {
   const { data } = await supabase
     .from("league_members")
-    .select("leagues(id, name)")
+    .select("leagues(id, name, is_global, points_exact, points_outcome, submission_mode)")
     .eq("user_id", userId)
     .order("joined_at", { ascending: true });
 
@@ -23,8 +24,8 @@ async function resolveLeagues(
     .map((r) => r.leagues)
     .filter((l): l is LeagueOption => l !== null);
 
-  const activeLeagueId = leagues.find((l) => l.id === requested)?.id ?? leagues[0]?.id ?? null;
-  return { leagues, activeLeagueId };
+  const active = leagues.find((l) => l.id === requested) ?? leagues[0] ?? null;
+  return { leagues, active, activeLeagueId: active?.id ?? null };
 }
 
 export default async function MatchesPage({ searchParams }: { searchParams: Promise<{ league?: string }> }) {
@@ -32,10 +33,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const supabase = await createClient();
   const userId = (await getUserId(supabase))!;
 
-  const [{ leagues, activeLeagueId }, matches, settings] = await Promise.all([
+  const [{ leagues, active, activeLeagueId }, matches] = await Promise.all([
     resolveLeagues(supabase, userId, league),
     getMatchesCached(),
-    getSettingsCached(),
   ]);
 
   const predMap: PredMap = {};
@@ -56,9 +56,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       predictions={predMap}
       leagues={leagues}
       activeLeagueId={activeLeagueId}
-      submissionMode={settings?.submission_mode === "single" ? "single" : "multiple"}
-      exactPts={settings?.points_exact ?? 3}
-      outcomePts={settings?.points_outcome ?? 1}
+      submissionMode={active?.submission_mode === "single" ? "single" : "multiple"}
+      exactPts={active?.points_exact ?? 3}
+      outcomePts={active?.points_outcome ?? 1}
     />
   );
 }

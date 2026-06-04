@@ -37,21 +37,24 @@ export async function proxy(request: NextRequest) {
   const isAuthPage =
     pathname === "/login" || pathname === "/register" || pathname === "/forgot-password";
   const isChangePw = pathname === "/change-password";
+  // Public marketing landing ("/") and the global leaderboard are intentionally
+  // open to logged-out visitors and are NOT in isProtected.
   const isProtected =
     pathname.startsWith("/matches") ||
     pathname.startsWith("/picks") ||
-    pathname.startsWith("/leaderboard") ||
     pathname.startsWith("/leagues") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/reset-password") ||
     isChangePw;
+  // Entry points that signed-in users should skip past, into the app.
+  const isPublicEntry = pathname === "/" || isAuthPage;
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (user && isAuthPage) {
+  if (user && isPublicEntry) {
     const url = request.nextUrl.clone();
     url.pathname = "/matches";
     return NextResponse.redirect(url);

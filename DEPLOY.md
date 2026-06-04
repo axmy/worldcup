@@ -109,6 +109,17 @@ Setup:
 > Alternative: if you later use an SMTP-capable provider, disable the hook and
 > fill Authentication → Settings → SMTP instead.
 
+### 2e. Email rate limits  (Authentication → Rate Limits)
+GoTrue throttles auth emails **before** calling the send hook, so these are
+Supabase settings, not Mailngine's. The "We're sending too many emails / wait a
+minute" error comes from here — usually during rapid testing.
+- **Minimum interval between emails** (`max_frequency`): hosted default ≈ 60s →
+  this is the "wait a minute". Lower it for testing; keep it modest in prod.
+- **Rate limit for sending emails** (per hour): raise it (e.g. 100+). Some plans
+  cap this unless custom SMTP is configured.
+- Local dev relaxes these in `config.toml` (`email_sent = 60`, `max_frequency =
+  "1s"`) — that does **not** carry over to hosted; set them in the dashboard.
+
 ---
 
 ## 3. Vercel

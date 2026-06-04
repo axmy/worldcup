@@ -41,6 +41,10 @@ export type League = {
   join_code: string;
   created_by: string | null;
   created_at: string;
+  points_exact: number;
+  points_outcome: number;
+  submission_mode: "single" | "multiple";
+  is_global: boolean;
 };
 
 // A league plus its member count, as shown in lists.

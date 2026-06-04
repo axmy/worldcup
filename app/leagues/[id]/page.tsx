@@ -14,10 +14,12 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
   // RLS only returns the league if the caller is a member (or admin).
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, name, join_code")
+    .select("id, name, join_code, created_by, is_global")
     .eq("id", id)
     .single();
   if (!league) notFound();
+
+  const isOwner = !!userId && league.created_by === userId;
 
   const { data: rows } = await supabase.rpc("league_standings", { p_league_id: id });
 
@@ -31,7 +33,14 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
       meId={userId ?? ""}
       title={league.name}
       subtitle={`${board.length} member${board.length === 1 ? "" : "s"}`}
-      header={<LeagueHeader leagueId={league.id} joinCode={league.join_code} />}
+      header={
+        <LeagueHeader
+          leagueId={league.id}
+          joinCode={league.join_code}
+          isOwner={isOwner}
+          isGlobal={league.is_global}
+        />
+      }
     />
   );
 }

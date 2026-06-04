@@ -4,11 +4,34 @@ import { useActionState } from "react";
 import Link from "next/link";
 import type { LeagueSummary } from "@/lib/types";
 import { joinLeague } from "@/app/actions";
+import { CreateLeagueForm } from "@/components/CreateLeagueForm";
 import { Empty, Icon, ScreenHead } from "@/components/ui";
 
 type JoinState = { error?: string } | null;
 
-export function LeaguesScreen({ leagues }: { leagues: LeagueSummary[] }) {
+// Small pill used to mark the global league and leagues you own.
+function Tag({ label, accent }: { label: string; accent?: boolean }) {
+  return (
+    <span
+      className="display"
+      style={{
+        fontSize: 9.5,
+        fontWeight: 800,
+        letterSpacing: ".1em",
+        textTransform: "uppercase",
+        padding: "3px 7px",
+        borderRadius: 6,
+        background: accent ? "var(--grad-accent)" : "color-mix(in oklab, var(--accent) 16%, transparent)",
+        color: accent ? "var(--accent-ink)" : "var(--accent)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+export function LeaguesScreen({ leagues, meId }: { leagues: LeagueSummary[]; meId: string }) {
   const [state, action, pending] = useActionState(
     async (_prev: JoinState, fd: FormData): Promise<JoinState> => {
       const res = await joinLeague(fd);
@@ -21,8 +44,10 @@ export function LeaguesScreen({ leagues }: { leagues: LeagueSummary[] }) {
     <div className="screen-enter">
       <ScreenHead
         title="Leagues"
-        sub={leagues.length ? `You're in ${leagues.length} league${leagues.length === 1 ? "" : "s"}` : "Join a league to compete"}
+        sub={leagues.length ? `You're in ${leagues.length} league${leagues.length === 1 ? "" : "s"}` : "Create or join a league to compete"}
       />
+
+      <CreateLeagueForm />
 
       {/* Join by code */}
       <form
@@ -68,7 +93,7 @@ export function LeaguesScreen({ leagues }: { leagues: LeagueSummary[] }) {
       )}
 
       {leagues.length === 0 && (
-        <Empty icon="trophy" text="You haven't joined any leagues yet. Enter a code above to get started." />
+        <Empty icon="trophy" text="You're not in any leagues yet. Create your own above or enter a join code." />
       )}
 
       <div className="wc-grid stagger">
@@ -103,8 +128,11 @@ export function LeaguesScreen({ leagues }: { leagues: LeagueSummary[] }) {
               <Icon name="trophy" size={22} stroke={2.4} style={{ transform: "skewX(6deg)" }} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="display" style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {l.name}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                <div className="display" style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {l.name}
+                </div>
+                {l.is_global ? <Tag label="Global" accent /> : l.created_by === meId ? <Tag label="Owner" /> : null}
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 3 }}>
                 {l.member_count} member{l.member_count === 1 ? "" : "s"}
