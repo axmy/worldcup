@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { LeaderboardRow } from "@/lib/types";
-import { Avatar, Brand, Countdown, Crest, Icon } from "@/components/ui";
+import { Avatar, Brand, Crest, Icon } from "@/components/ui";
 import { ShareBar } from "@/components/ShareBar";
+import { KickoffCountdown } from "@/components/KickoffCountdown";
 import { flagEmoji } from "@/lib/flags";
 
 // Public marketing landing page. Copy is plain markup — edit freely. Uses the
@@ -10,9 +11,6 @@ import { flagEmoji } from "@/lib/flags";
 // World Cup feel (pitch lines, host nations, a flag marquee, kickoff countdown).
 
 const wrap: CSSProperties = { maxWidth: 980, margin: "0 auto", padding: "0 20px" };
-
-// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City.
-const KICKOFF_MS = new Date("2026-06-11T19:00:00-06:00").getTime();
 
 // Host nations + a spread of headline teams for the flag marquee.
 const HOSTS = ["Mexico", "United States", "Canada"];
@@ -190,30 +188,7 @@ export function LandingScreen({
             and climb one global leaderboard against the whole world.
           </p>
 
-          {/* Kickoff countdown */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 14,
-              margin: "30px auto 0",
-              padding: "12px 22px",
-              borderRadius: 16,
-              background: "var(--bg-2)",
-              border: "1px solid var(--line-soft)",
-              boxShadow: "var(--shadow)",
-            }}
-          >
-            <Icon name="trophy" size={22} style={{ color: "var(--accent)" }} />
-            <div style={{ textAlign: "left" }}>
-              <div className="display" style={{ fontSize: 9.5, letterSpacing: ".16em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>
-                Kickoff · Estadio Azteca
-              </div>
-              <Countdown to={KICKOFF_MS} style={{ fontSize: 22, fontWeight: 800, color: "var(--text)" }} />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginTop: 28 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginTop: 30 }}>
             <Link href="/register" className="btn-sport tap" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 26px", borderRadius: 13, textDecoration: "none", fontSize: 16 }}>
               <Icon name="bolt" size={18} stroke={2.4} /> Start predicting — free
             </Link>
@@ -237,6 +212,11 @@ export function LandingScreen({
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ── Kickoff countdown ── */}
+      <section style={{ ...wrap, padding: "44px 20px 8px" }}>
+        <KickoffCountdown />
       </section>
 
       {/* ── How it works ── */}

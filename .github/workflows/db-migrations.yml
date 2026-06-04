@@ -1,0 +1,33 @@
+# Applies new Supabase migrations to the hosted database automatically.
+# Runs on every push to main that changes supabase/migrations/** — so migrations
+# go live alongside the Vercel deploy without a manual `supabase db push`.
+#
+# One-time setup — add these in GitHub → repo → Settings → Secrets and variables
+# → Actions → New repository secret:
+#   SUPABASE_ACCESS_TOKEN  – from https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD   – the project's database password
+#   SUPABASE_PROJECT_REF   – the project ref (e.g. chtnvlicujiiixgmlxmv)
+name: DB migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch: {} # also runnable manually from the Actions tab
+
+jobs:
+  db-push:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Apply pending migrations
+        run: supabase db push

@@ -303,7 +303,9 @@ export function Avatar({
   );
 }
 
-/* ── Live countdown ── */
+/* ── Live countdown ──
+   A meaningful multi-unit timer that ticks live: shows the largest relevant
+   units down to seconds so the time left is always clear. */
 export function fmtRemain(ms: number) {
   if (ms <= 0) return { text: "Closed", urgent: false, closed: true };
   const s = Math.floor(ms / 1000);
@@ -311,9 +313,14 @@ export function fmtRemain(ms: number) {
     h = Math.floor((s % 86400) / 3600),
     m = Math.floor((s % 3600) / 60),
     ss = s % 60;
-  if (d >= 1) return { text: `${d}d ${h}h`, urgent: false, closed: false };
-  if (h >= 1) return { text: `${h}h ${String(m).padStart(2, "0")}m`, urgent: h < 2, closed: false };
-  return { text: `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`, urgent: true, closed: false };
+  // ≥1 day: days/hours/minutes (seconds would be noise at this range).
+  if (d >= 1) return { text: `${d}d ${h}h ${m}m`, urgent: false, closed: false };
+  // ≥1 hour: hours/minutes/seconds.
+  if (h >= 1) return { text: `${h}h ${m}m ${ss}s`, urgent: false, closed: false };
+  // <1 hour: minutes/seconds — getting urgent.
+  if (m >= 1) return { text: `${m}m ${ss}s`, urgent: m < 15, closed: false };
+  // Final minute: seconds only.
+  return { text: `${ss}s`, urgent: true, closed: false };
 }
 // Returns Date.now() ticking every `intervalMs`. null until mounted so SSR and
 // the first client render agree (the server clock differs from the browser's).

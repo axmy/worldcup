@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:fresh": "supabase db reset",
+    "db:migrate": "supabase migration up",
+    "db:push": "supabase db push",
+    "db:new": "supabase migration new",
+    "db:status": "supabase migration list"
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",

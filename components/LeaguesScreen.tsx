@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { LeagueSummary } from "@/lib/types";
-import { joinLeague } from "@/app/actions";
+import { joinLeague, joinGlobal } from "@/app/actions";
 import { CreateLeagueForm } from "@/components/CreateLeagueForm";
 import { Empty, Icon, ScreenHead } from "@/components/ui";
 
@@ -31,7 +32,9 @@ function Tag({ label, accent }: { label: string; accent?: boolean }) {
   );
 }
 
-export function LeaguesScreen({ leagues, meId }: { leagues: LeagueSummary[]; meId: string }) {
+export function LeaguesScreen({ leagues, meId, inGlobal }: { leagues: LeagueSummary[]; meId: string; inGlobal: boolean }) {
+  const router = useRouter();
+  const [joiningGlobal, startJoinGlobal] = useTransition();
   const [state, action, pending] = useActionState(
     async (_prev: JoinState, fd: FormData): Promise<JoinState> => {
       const res = await joinLeague(fd);
@@ -40,12 +43,37 @@ export function LeaguesScreen({ leagues, meId }: { leagues: LeagueSummary[]; meI
     null,
   );
 
+  function rejoinGlobal() {
+    startJoinGlobal(async () => {
+      await joinGlobal();
+      router.refresh();
+    });
+  }
+
   return (
     <div className="screen-enter">
       <ScreenHead
         title="Leagues"
         sub={leagues.length ? `You're in ${leagues.length} league${leagues.length === 1 ? "" : "s"}` : "Create or join a league to compete"}
       />
+
+      {!inGlobal && (
+        <div
+          className="card-sport"
+          style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "space-between", padding: "14px 16px", marginBottom: 14, borderRadius: 16, background: "linear-gradient(120deg, color-mix(in oklab, oklch(0.62 0.17 150) 24%, var(--bg-2)), var(--bg-2))" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+            <Icon name="trophy" size={20} style={{ color: "oklch(0.8 0.18 140)" }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="display" style={{ fontSize: 14.5, fontWeight: 800 }}>Global Leaderboard</div>
+              <div style={{ fontSize: 12, color: "var(--text-faint)" }}>You&apos;re not competing globally. Join to rank against everyone.</div>
+            </div>
+          </div>
+          <button onClick={rejoinGlobal} disabled={joiningGlobal} className="btn-sport tap" style={{ borderRadius: 10, padding: "9px 18px", fontSize: 14, whiteSpace: "nowrap" }}>
+            {joiningGlobal ? "Joining…" : "Join"}
+          </button>
+        </div>
+      )}
 
       <CreateLeagueForm />
 

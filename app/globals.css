@@ -65,22 +65,30 @@ body {
 }
 body {
   font-family: var(--font-body);
-  /* World Cup stadium-pitch ambiance behind every page: mowed-grass vertical
-     stripes over two grass-green glows, fixed to the viewport. Tuned so content
-     cards (on --bg-2) stay perfectly readable on top. */
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* World Cup stadium-pitch ambiance behind every page: mowed-grass vertical
+   stripes over two grass-green glows. Rendered as a FIXED decorative layer
+   (position: fixed) rather than `background-attachment: fixed` — the latter is
+   ignored/mis-rendered by most mobile browsers, so the look was inconsistent in
+   production. Tuned so content cards (on --bg-2) stay perfectly readable. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-color: var(--bg);
   background-image:
     repeating-linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.19 145) 5%, transparent) 0 70px, transparent 70px 140px),
     radial-gradient(78% 58% at 4% -10%, color-mix(in oklab, oklch(0.72 0.19 145) 22%, transparent), transparent 60%),
     radial-gradient(72% 56% at 106% 110%, color-mix(in oklab, oklch(0.6 0.17 152) 20%, transparent), transparent 60%);
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 /* Lighter wash on the light theme so it doesn't overpower. */
-[data-theme="light"] body {
+[data-theme="light"] body::before {
   background-image:
     repeating-linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.19 145) 4%, transparent) 0 70px, transparent 70px 140px),
     radial-gradient(78% 58% at 4% -10%, color-mix(in oklab, oklch(0.72 0.19 145) 11%, transparent), transparent 60%),

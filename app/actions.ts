@@ -4,6 +4,8 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { fetchSchedule } from "@/lib/providers/apiFootball";
+import { syncResults } from "@/lib/sync/results";
 
 // The app's public origin for building redirect URLs (OAuth callback, password
 // reset link). Prefer an explicit NEXT_PUBLIC_SITE_URL, then the request Origin,
@@ -69,6 +71,9 @@ export async function verifyEmailOtp(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
   if (error) return { error: error.message, step: "verify" as const, email };
+  // Guarantee a profile + global-league membership even if the DB triggers
+  // didn't fire, so the user lands on /matches with league context.
+  await supabase.rpc("ensure_self");
   redirect("/matches");
 }
 
@@ -100,6 +105,7 @@ export async function login(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
+  await supabase.rpc("ensure_self");
   redirect("/matches");
 }
 
@@ -341,6 +347,17 @@ export async function joinLeague(formData: FormData) {
   return { ok: true };
 }
 
+export async function joinGlobal() {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("join_global");
+  if (error) return { error: error.message };
+  revalidatePath("/leagues");
+  revalidatePath("/leaderboard");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true };
+}
+
 export async function leaveLeague(formData: FormData) {
   const leagueId = String(formData.get("league_id"));
   const supabase = await createClient();
@@ -468,4 +485,147 @@ export async function updateSettings(formData: FormData) {
   updateTag("settings");
   revalidatePath("/admin");
   revalidatePath("/", "layout");
+}
+
+// ---------------- Results automation (API-Football) ----------------
+
+async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, error: "Not signed in." as const };
+  const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
+  if (!profile?.is_admin) return { supabase, error: "Admins only." as const };
+  return { supabase, error: null };
+}
+
+// Pull the competition schedule from API-Football and upsert fixtures (matched
+// by the provider's fixture id). Runs as the admin (RLS lets admins write
+// matches). New fixtures default to "closes at kickoff" — the admin can edit.
+export async function importFixtures() {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+
+  let fixtures;
+  try {
+    fixtures = await fetchSchedule();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not reach the data provider." };
+  }
+
+  const { data: existingRows } = await supabase
+    .from("matches")
+    .select("id, external_ref")
+    .eq("provider", "api-football")
+    .not("external_ref", "is", null);
+  const existing = new Map(
+    ((existingRows as { id: string; external_ref: string }[] | null) ?? []).map((r) => [r.external_ref, r.id]),
+  );
+
+  let inserted = 0;
+  let updated = 0;
+  for (const f of fixtures) {
+    const id = existing.get(f.external_ref);
+    if (id) {
+      // Updating kickoff_time recomputes submission_deadline via the trigger,
+      // preserving the fixture's existing deadline rule.
+      const { error } = await supabase
+        .from("matches")
+        .update({ home_team: f.home_team, away_team: f.away_team, kickoff_time: f.kickoff_time })
+        .eq("id", id);
+      if (!error) updated++;
+    } else {
+      const { error } = await supabase.from("matches").insert({
+        home_team: f.home_team,
+        away_team: f.away_team,
+        kickoff_time: f.kickoff_time,
+        deadline_type: "minutes_before_kickoff",
+        deadline_value: "0",
+        submission_deadline: f.kickoff_time, // placeholder; recomputed by trigger
+        external_ref: f.external_ref,
+        provider: "api-football",
+      });
+      if (!error) inserted++;
+    }
+  }
+
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true, inserted, updated };
+}
+
+// Re-seed the built-in 72 WC2026 fixtures (no API needed). Only inserts when the
+// fixtures table is empty — e.g. right after a Reset.
+export async function seedFixtures() {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+  const { data, error } = await supabase.rpc("seed_wc2026_fixtures");
+  if (error) return { error: error.message };
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true, inserted: (data as number | null) ?? 0 };
+}
+
+// On-demand results sync (same engine the cron uses) — works on any host plan.
+export async function syncResultsNow() {
+  const { error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+  try {
+    const summary = await syncResults();
+    return { ok: true, ...summary };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Sync failed." };
+  }
+}
+
+// Granular admin maintenance — each keeps the admin + global league.
+async function runMaintenance(rpc: "clear_scores" | "clear_predictions" | "delete_user_leagues" | "delete_players") {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+  const { data, error } = await supabase.rpc(rpc);
+  if (error) return { error: error.message };
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  revalidatePath("/leagues");
+  revalidatePath("/leaderboard");
+  return { ok: true, count: (data as number | null) ?? 0 };
+}
+
+export async function clearScores() {
+  return runMaintenance("clear_scores");
+}
+export async function clearPredictions() {
+  return runMaintenance("clear_predictions");
+}
+export async function removeLeagues() {
+  return runMaintenance("delete_user_leagues");
+}
+export async function removePlayers() {
+  return runMaintenance("delete_players");
+}
+
+// DESTRUCTIVE: wipe predictions, results, user leagues and fixtures (keeps users
+// and the global league). Guarded by is_admin() in the RPC.
+export async function resetData(formData: FormData) {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+  if (String(formData.get("confirm") ?? "") !== "RESET") {
+    return { error: 'Type RESET to confirm.' };
+  }
+  const { error } = await supabase.rpc("reset_app_data");
+  if (error) return { error: error.message };
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  revalidatePath("/leagues");
+  revalidatePath("/leaderboard");
+  return { ok: true };
 }
