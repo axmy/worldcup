@@ -20,7 +20,6 @@ export type Match = {
 export type Prediction = {
   id: string;
   user_id: string;
-  league_id: string;
   match_id: string;
   home_score: number;
   away_score: number;

@@ -173,13 +173,6 @@ export function ManageLeagueScreen({
             <input name="points_outcome" type="number" min={0} defaultValue={league.points_outcome} style={field} />
           </div>
         </div>
-        <div>
-          <label style={lab}>SUBMISSION RULE</label>
-          <select name="submission_mode" defaultValue={league.submission_mode} style={field}>
-            <option value="multiple">Multiple — edit picks freely until the deadline</option>
-            <option value="single">Single — first pick locks, no edits</option>
-          </select>
-        </div>
         <p style={{ fontSize: 11.5, color: "var(--warn)", margin: 0 }}>
           Changing points only affects matches scored after the change. Re-publishing a result recomputes it.
         </p>

@@ -103,13 +103,6 @@ export function CreateLeagueForm() {
               <input name="points_outcome" type="number" min={0} defaultValue={1} style={field} />
             </div>
           </div>
-          <div>
-            <label style={lab}>SUBMISSION RULE</label>
-            <select name="submission_mode" defaultValue="multiple" style={field}>
-              <option value="multiple">Multiple — edit picks freely until the deadline</option>
-              <option value="single">Single — first pick locks, no edits</option>
-            </select>
-          </div>
         </div>
       )}
 

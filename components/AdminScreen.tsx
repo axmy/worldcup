@@ -485,19 +485,23 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
 
       <div style={{ border: "1px solid var(--line-soft)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>
-          Defaults for new leagues
+          Prediction rules
         </div>
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", margin: "-4px 0 0" }}>
-          Each league now carries its own scoring &amp; rules; organizers can override these when creating a league. These values seed new leagues (and the global competition).
-        </p>
 
         <div>
-          <label style={lab}>SUBMISSION RULE</label>
+          <label style={lab}>SUBMISSION RULE · APPLIES TO EVERYONE</label>
           <select name="submission_mode" defaultValue={settings.submission_mode} style={sel}>
             <option value="multiple">Multiple — edit picks freely until the deadline</option>
             <option value="single">Single — first pick locks, no edits</option>
           </select>
+          <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
+            Each player makes one prediction per match (counts in every league they join), so this edit rule is platform-wide.
+          </p>
         </div>
+
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", margin: "4px 0 -2px" }}>
+          Points below seed new leagues (organizers can override per league):
+        </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
