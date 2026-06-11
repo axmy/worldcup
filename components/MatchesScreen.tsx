@@ -1,23 +1,43 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Match } from "@/lib/types";
-import { Countdown, Empty, Icon, ScreenHead, SectionLabel, dayKey, fmtDay, matchStatus, useNow } from "@/components/ui";
+import { Countdown, Empty, Icon, ScreenHead, SectionLabel, dayKey, fmtDay, isLive, matchStatus, useNow } from "@/components/ui";
 import { flagEmoji } from "@/lib/flags";
 import { MatchCard, type Pred } from "@/components/MatchCard";
 import { PredictSheet } from "@/components/PredictSheet";
 
 export type PredMap = Record<string, Pred>;
 
-// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City, 13:00 local (19:00 UTC).
-// Must match the fixture kickoff in supabase/migrations/0023_wc2026_real_schedule.sql.
-const KICKOFF_MS = new Date("2026-06-11T19:00:00Z").getTime();
 const HOST_FLAGS = ["Mexico", "United States", "Canada"].map((h) => flagEmoji(h)).join(" ");
 
+// Right side of the ribbon: matches in play right now, else a countdown to the
+// next kickoff, else the tournament is done. (The old fixed opener countdown
+// read "Kickoff in · Closed" forever once the tournament started.)
+function RibbonStatus({ matches, now }: { matches: Match[]; now: number }) {
+  const liveCount = matches.filter(isLive).length;
+  const next = matches.find((m) => m.home_score === null && new Date(m.kickoff_time).getTime() > now);
+  const label = liveCount > 0 ? "Now playing" : next ? "Next kickoff in" : "Tournament";
+  return (
+    <div style={{ textAlign: "right" }}>
+      <div className="display" style={{ fontSize: 8.5, letterSpacing: ".14em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>{label}</div>
+      {liveCount > 0 ? (
+        <span className="num" style={{ fontSize: 15, fontWeight: 800, color: "var(--neg)" }}>
+          {liveCount} live
+        </span>
+      ) : next ? (
+        <Countdown to={new Date(next.kickoff_time).getTime()} style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }} />
+      ) : (
+        <span className="display" style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Complete</span>
+      )}
+    </div>
+  );
+}
+
 // Slim stadium ribbon shown atop the Matches screen.
-function WorldCupRibbon() {
+function WorldCupRibbon({ matches, now }: { matches: Match[]; now: number }) {
   return (
     <div
       className="card-sport"
@@ -43,10 +63,7 @@ function WorldCupRibbon() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Icon name="trophy" size={16} style={{ color: "oklch(0.8 0.18 140)" }} />
-        <div style={{ textAlign: "right" }}>
-          <div className="display" style={{ fontSize: 8.5, letterSpacing: ".14em", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase" }}>Kickoff in</div>
-          <Countdown to={KICKOFF_MS} style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }} />
-        </div>
+        <RibbonStatus matches={matches} now={now} />
       </div>
     </div>
   );
@@ -140,6 +157,20 @@ export function MatchesScreen({
 
   const openCount = matches.filter((m) => matchStatus(m, now) === "open").length;
 
+  // While any match is in its play window, re-pull fresh data every minute so
+  // live scores and the half-time lock (written by the results cron) show up
+  // without a manual reload.
+  const anyInPlay = matches.some((m) => {
+    if (m.home_score !== null) return false;
+    const kick = new Date(m.kickoff_time).getTime();
+    return now >= kick - 60_000 && now - kick < 3 * 3_600_000;
+  });
+  useEffect(() => {
+    if (!anyInPlay) return;
+    const t = window.setInterval(() => router.refresh(), 60_000);
+    return () => window.clearInterval(t);
+  }, [anyInPlay, router]);
+
   function done(msg: string) {
     setSheet(null);
     setToast(msg);
@@ -152,7 +183,7 @@ export function MatchesScreen({
     <div className="screen-enter">
       <ScreenHead title="Matches" sub={`${openCount} open for predictions · times in Maldives time (MVT)`} />
 
-      <WorldCupRibbon />
+      <WorldCupRibbon matches={matches} now={now} />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", paddingBottom: 2 }}>
         {FILTERS.map(([k, label]) => (
@@ -195,7 +226,7 @@ export function MatchesScreen({
 
       {sheet && (
         <PredictSheet
-          match={sheet}
+          match={matches.find((m) => m.id === sheet.id) ?? sheet}
           pred={predictions[sheet.id]}
           submissionMode={submissionMode}
           onClose={() => setSheet(null)}

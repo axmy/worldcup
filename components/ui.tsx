@@ -369,10 +369,16 @@ export function matchStatus(match: Match, now: number): MatchState {
   if (match.submission_open && now < new Date(match.submission_open).getTime()) return "upcoming";
   return "open";
 }
-export function StatusPill({ status }: { status: MatchState }) {
+// In play: the sync has written live data and the final score hasn't landed.
+// (live_* may be briefly undefined from a pre-migration cache — treat as off.)
+export function isLive(match: Match): boolean {
+  return match.home_score === null && match.live_status != null;
+}
+export function StatusPill({ status }: { status: MatchState | "live" }) {
   const map = {
     upcoming: { label: "SOON", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "clock", glow: false },
     open: { label: "OPEN", c: "var(--accent-ink)", bg: "var(--grad-accent)", icon: "bolt", glow: true },
+    live: { label: "LIVE", c: "#fff", bg: "var(--neg)", icon: "bolt", glow: false },
     locked: { label: "LOCKED", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "lock", glow: false },
     final: { label: "FINAL", c: "var(--text-dim)", bg: "var(--bg-3)", icon: "check", glow: false },
   }[status];

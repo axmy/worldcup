@@ -17,6 +17,17 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 // Livescore status strings that mean the match is over.
 const FINAL_STATUSES = new Set(["FT", "AET", "AP", "AWD", "WO"]);
 
+// In-play statuses where the clock is paused (half-time, extra-time break,
+// penalty shoot-out) — no minute string, but the match is live.
+const PAUSED_STATUSES = new Set(["HT", "Break", "Pen."]);
+
+// While in play, Eps is the match clock: "23'", "45+2'", … Stoppage time keeps
+// the base minute ("45+2'" → 45 — still the first half). Null when not playing.
+function parseMinute(status: string): number | null {
+  const m = /^(\d+)(?:\+\d+)?'?$/.exec(status);
+  return m ? Number(m[1]) : null;
+}
+
 function competition() {
   return (process.env.LIVESCORE_COMPETITION || "World Cup 2026").toLowerCase();
 }
@@ -35,6 +46,10 @@ export type ProviderResult = {
   kickoff_time: string; // ISO
   status: string;
   final: boolean;
+  // Kicked off and not yet finished (running clock or a paused-clock status).
+  inPlay: boolean;
+  // Minutes on the clock while in play, else null.
+  minute: number | null;
   home: number | null;
   away: number | null;
 };
@@ -86,6 +101,7 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
       const away = e.T2?.[0]?.Nm;
       if (!home || !away || e.Eid == null) continue;
       const status = e.Eps ?? "";
+      const minute = parseMinute(status);
       out.push({
         external_ref: String(e.Eid),
         home_team: home,
@@ -93,6 +109,8 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
         kickoff_time: esdToIso(e.Esd),
         status,
         final: FINAL_STATUSES.has(status),
+        inPlay: !FINAL_STATUSES.has(status) && (minute !== null || PAUSED_STATUSES.has(status)),
+        minute,
         home: toScore(e.Tr1),
         away: toScore(e.Tr2),
       });

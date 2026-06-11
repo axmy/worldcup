@@ -3,11 +3,18 @@
 import type { CSSProperties } from "react";
 import { useNow } from "@/components/ui";
 
-// 2026 FIFA World Cup opening match — June 11, 2026, 13:00 in Mexico City (19:00 UTC).
-// Must match the fixture kickoff in supabase/migrations/0023_wc2026_real_schedule.sql.
+// 2026 FIFA World Cup — opener June 11, 13:00 in Mexico City (19:00 UTC; must
+// match supabase/migrations/0023_wc2026_real_schedule.sql), final July 19 in
+// New York New Jersey (19:00 UTC). Once the opener kicks off, the hero flips
+// from counting down to kickoff to counting down to the final.
 const KICKOFF_MS = new Date("2026-06-11T19:00:00Z").getTime();
+const FINAL_MS = new Date("2026-07-19T19:00:00Z").getTime();
 
 const GREEN = "oklch(0.78 0.16 155)";
+
+// Clock at module load — picks the phase before useNow mounts. Phase only
+// changes at day-scale boundaries, and the ticking clock takes over on mount.
+const LOADED_AT = Date.now();
 
 function pad(n: number) {
   return String(Math.max(0, n)).padStart(2, "0");
@@ -44,16 +51,49 @@ function Colon({ compact }: { compact: boolean }) {
   );
 }
 
-// Segmented kickoff countdown. `compact` fits it into the narrower auth hero.
+// Per-phase hero copy: counting down to the opener, then to the final, then done.
+const COPY = {
+  pre: {
+    label: "Kickoff in",
+    headline: "Kickoff is coming",
+    sub: "Countdown to the World Cup",
+    where: "Mexico City",
+    what: "Opening Match",
+    shortDate: "June 11, 2026",
+  },
+  during: {
+    label: "The final in",
+    headline: "The World Cup is on",
+    sub: "Countdown to the final",
+    where: "New York New Jersey",
+    what: "The Final",
+    shortDate: "July 19, 2026",
+  },
+  post: {
+    label: "Full time",
+    headline: "That's a wrap",
+    sub: "World Cup 2026 is in the books",
+    where: "",
+    what: "",
+    shortDate: "June 11 – July 19, 2026",
+  },
+} as const;
+
+// Segmented countdown to the opener — and, once the tournament is underway, to
+// the final. `compact` fits it into the narrower auth hero.
 export function KickoffCountdown({ compact = false }: { compact?: boolean }) {
   const now = useNow(1000);
-  // Kickoff in the visitor's own timezone; only after mount so SSR and client agree.
+  const t = now ?? LOADED_AT;
+  const phase = t < KICKOFF_MS ? "pre" : t < FINAL_MS ? "during" : "post";
+  const copy = COPY[phase];
+  const target = phase === "pre" ? KICKOFF_MS : FINAL_MS;
+  // Target time in the visitor's own timezone; only after mount so SSR and client agree.
   const localKickoff = now === null
     ? ""
-    : new Date(KICKOFF_MS).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    : new Date(target).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   let d = 0, h = 0, m = 0, s = 0;
   if (now !== null) {
-    const sec = Math.max(0, Math.floor((KICKOFF_MS - now) / 1000));
+    const sec = Math.max(0, Math.floor((target - now) / 1000));
     d = Math.floor(sec / 86400);
     h = Math.floor((sec % 86400) / 3600);
     m = Math.floor((sec % 3600) / 60);
@@ -67,33 +107,35 @@ export function KickoffCountdown({ compact = false }: { compact?: boolean }) {
   return (
     <div style={{ textAlign: "center" }}>
       {compact ? (
-        <div className="display" style={{ fontSize: 11, letterSpacing: ".16em", fontWeight: 800, textTransform: "uppercase", color: GREEN, marginBottom: 14 }}>
-          Kickoff in
+        <div suppressHydrationWarning className="display" style={{ fontSize: 11, letterSpacing: ".16em", fontWeight: 800, textTransform: "uppercase", color: GREEN, marginBottom: 14 }}>
+          {copy.label}
         </div>
       ) : (
         <>
-          <h2 className="h-hero" style={{ fontSize: "clamp(30px, 6vw, 52px)", fontStyle: "italic", textTransform: "uppercase", letterSpacing: "-0.01em" }}>
-            Kickoff is coming
+          <h2 suppressHydrationWarning className="h-hero" style={{ fontSize: "clamp(30px, 6vw, 52px)", fontStyle: "italic", textTransform: "uppercase", letterSpacing: "-0.01em" }}>
+            {copy.headline}
           </h2>
-          <p style={{ fontSize: "clamp(15px, 2.5vw, 19px)", color: "var(--text-dim)", marginTop: 14 }}>Countdown to the World Cup</p>
+          <p suppressHydrationWarning style={{ fontSize: "clamp(15px, 2.5vw, 19px)", color: "var(--text-dim)", marginTop: 14 }}>{copy.sub}</p>
         </>
       )}
 
-      <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: compact ? 8 : "clamp(8px, 2.5vw, 20px)", marginTop: compact ? 0 : 30 }}>
-        <Cell value={cells[0][0]} label={cells[0][1]} compact={compact} />
-        <Colon compact={compact} />
-        <Cell value={cells[1][0]} label={cells[1][1]} compact={compact} />
-        <Colon compact={compact} />
-        <Cell value={cells[2][0]} label={cells[2][1]} compact={compact} />
-        <Colon compact={compact} />
-        <Cell value={cells[3][0]} label={cells[3][1]} compact={compact} />
-      </div>
+      {phase !== "post" && (
+        <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: compact ? 8 : "clamp(8px, 2.5vw, 20px)", marginTop: compact ? 0 : 30 }}>
+          <Cell value={cells[0][0]} label={cells[0][1]} compact={compact} />
+          <Colon compact={compact} />
+          <Cell value={cells[1][0]} label={cells[1][1]} compact={compact} />
+          <Colon compact={compact} />
+          <Cell value={cells[2][0]} label={cells[2][1]} compact={compact} />
+          <Colon compact={compact} />
+          <Cell value={cells[3][0]} label={cells[3][1]} compact={compact} />
+        </div>
+      )}
 
-      <p style={{ fontSize: compact ? 12 : "clamp(13px, 2.5vw, 17px)", color: "var(--text-faint)", marginTop: compact ? 16 : 28, fontWeight: 500 }}>
-        {compact ? (
-          <>June 11, 2026 · Mexico City</>
+      <p suppressHydrationWarning style={{ fontSize: compact ? 12 : "clamp(13px, 2.5vw, 17px)", color: "var(--text-faint)", marginTop: compact ? 16 : 28, fontWeight: 500 }}>
+        {compact || phase === "post" ? (
+          <>{copy.shortDate}{copy.where && <> · {copy.where}</>}</>
         ) : (
-          <>June 11, 2026{localKickoff && <> — {localKickoff} your time</>} <span aria-hidden style={{ margin: "0 8px" }}>·</span> Mexico City <span aria-hidden style={{ margin: "0 8px" }}>·</span> Opening Match</>
+          <>{copy.shortDate}{localKickoff && <> — {localKickoff} your time</>} <span aria-hidden style={{ margin: "0 8px" }}>·</span> {copy.where} <span aria-hidden style={{ margin: "0 8px" }}>·</span> {copy.what}</>
         )}
       </p>
     </div>

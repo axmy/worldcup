@@ -16,6 +16,12 @@ export type Match = {
   submission_deadline: string;
   home_score: number | null;
   away_score: number | null;
+  // In-play data from the results sync (display-only; cleared meaning once
+  // home_score/away_score land). live_status is Livescore's clock/status
+  // string: "23'", "45+2'", "HT", …
+  live_home_score: number | null;
+  live_away_score: number | null;
+  live_status: string | null;
 };
 
 export type Prediction = {

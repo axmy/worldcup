@@ -35,6 +35,14 @@ export type Settings = {
   accent: string;
 };
 
+// Toast for a manual results sync: finals scored + in-play matches refreshed.
+function syncFlash(res: { updated: number; liveUpdated: number }): string {
+  const parts: string[] = [];
+  if (res.updated > 0) parts.push(`${res.updated} final${res.updated === 1 ? "" : "s"}`);
+  if (res.liveUpdated > 0) parts.push(`${res.liveUpdated} live`);
+  return parts.length > 0 ? `Synced ${parts.join(" · ")}` : "No matches in play or awaiting results";
+}
+
 // Medium/deep hues chosen to pair with white button text (--accent-ink: #fff).
 const ACCENTS: [string, string][] = [
   ["Indigo", "oklch(0.58 0.21 264)"],
@@ -272,7 +280,7 @@ function Results({ matches, now, onPublished, onFlash }: { matches: Match[]; now
     startSync(async () => {
       const res = await syncResultsNow();
       if (res && "error" in res && res.error) onFlash(res.error);
-      else if (res && "ok" in res) onFlash(res.updated > 0 ? `Synced ${res.updated} result${res.updated === 1 ? "" : "s"}` : "No new finished matches");
+      else if (res && "ok" in res) onFlash(syncFlash(res));
       router.refresh();
     });
   }
@@ -548,7 +556,7 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
           <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
             {dlMode === "before" && `Picks lock ${dlMin} min before each kickoff.`}
             {dlMode === "at" && "Picks stay open right up to kickoff."}
-            {dlMode === "after" && `Picks stay open until ${dlMin} min into the match (e.g. 45 = before the second half).`}
+            {dlMode === "after" && `Picks stay open until ${dlMin} min into the match (e.g. 45 = until half-time). The results sync tracks the real match clock, so a delayed kickoff extends the window and the half-time whistle closes it.`}
             {" "}Saving re-applies this to all fixtures.
           </p>
         </div>
@@ -612,7 +620,7 @@ function Ops({ onFlash }: { onFlash: (msg: string) => void }) {
     startTransition(async () => {
       const res = await syncResultsNow();
       if (res && "error" in res && res.error) onFlash(res.error);
-      else if (res && "ok" in res) onFlash(res.updated > 0 ? `Synced ${res.updated} result${res.updated === 1 ? "" : "s"}` : "No new finished matches");
+      else if (res && "ok" in res) onFlash(syncFlash(res));
       router.refresh();
     });
   }

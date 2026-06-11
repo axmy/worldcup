@@ -7,6 +7,7 @@ import {
   Icon,
   PointsBadge,
   StatusPill,
+  isLive,
   matchStatus,
   teamCode,
   teamColor,
@@ -46,6 +47,22 @@ function CenterCell({ match, status, pred }: { match: Match; status: MatchState;
           {match.away_score}
         </div>
         <div className="display" style={{ fontSize: 10, letterSpacing: ".12em", color: "var(--text-faint)", marginTop: 4, fontWeight: 600, textTransform: "uppercase" }}>Full time</div>
+      </div>
+    );
+  }
+  if (isLive(match) && match.live_home_score !== null && match.live_away_score !== null) {
+    return (
+      <div style={{ textAlign: "center", padding: "0 4px" }}>
+        <div className="score" style={{ fontSize: 42, lineHeight: 1, fontWeight: 700 }}>
+          {match.live_home_score}
+          <span style={{ color: "var(--text-faint)", margin: "0 5px", fontWeight: 600 }}>–</span>
+          {match.live_away_score}
+        </div>
+        {/* No match clock here — the sync runs every few minutes, so a frozen
+            minute would just look broken. Live / half-time / full-time only. */}
+        <div className="display" style={{ fontSize: 10, letterSpacing: ".12em", color: "var(--neg)", marginTop: 4, fontWeight: 700, textTransform: "uppercase" }}>
+          {match.live_status === "HT" ? "Half-time" : "Live"}
+        </div>
       </div>
     );
   }
@@ -127,7 +144,7 @@ export function MatchCard({
       <div style={{ position: "relative", padding: "13px 15px 14px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span suppressHydrationWarning className="display" style={{ fontSize: 12, fontWeight: 600, color: "var(--text-dim)", letterSpacing: 0 }}>{fmtKick(kickoffMs)}</span>
-          <StatusPill status={status} />
+          <StatusPill status={status !== "final" && isLive(match) ? "live" : status} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 8 }}>
@@ -161,10 +178,19 @@ export function MatchCard({
           )}
           {status === "locked" && (
             <>
-              <span suppressHydrationWarning style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Kickoff {fmtKick(kickoffMs)}</span>
+              {isLive(match) ? (
+                <span style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
+                  {match.live_status === "HT" ? "Half-time" : "In play"}
+                </span>
+              ) : (
+                <span suppressHydrationWarning style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Kickoff {fmtKick(kickoffMs)}</span>
+              )}
               {pred ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)" }}>
-                  <Icon name="lock" size={13} /> Pick locked
+                  <Icon name="lock" size={13} /> Your pick{" "}
+                  <b className="num" style={{ color: "var(--text)", fontWeight: 800 }}>
+                    {pred[0]}–{pred[1]}
+                  </b>
                 </span>
               ) : (
                 <span style={{ fontSize: 12.5, color: "var(--neg)", fontWeight: 600 }}>No pick submitted</span>
