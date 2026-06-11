@@ -10,6 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping sync endpoint
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -sS -f -X GET "${{ secrets.SYNC_URL }}" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          if [ -z "$SYNC_URL" ]; then
+            echo "::error::SYNC_URL secret is empty — set it to https://<prod-domain>/api/cron/sync-results"
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is empty — must match the CRON_SECRET env var on Vercel"
+            exit 1
+          fi
+          # Capture body + status separately so failures are diagnosable in the log.
+          code=$(curl -sS -X GET "$SYNC_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -o /tmp/sync-body.txt -w "%{http_code}")
+          echo "HTTP $code"
+          echo "Response:"; cat /tmp/sync-body.txt; echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::sync endpoint returned HTTP $code (see response body above)"
+            exit 1
+          fi

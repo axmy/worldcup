@@ -70,7 +70,12 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
     headers: { "User-Agent": UA, Accept: "application/json" },
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`Livescore request failed for ${yyyymmdd}: ${res.status}`);
+  if (!res.ok) {
+    // Include a short body snippet — datacenter IPs often get an HTML 403/429
+    // bot-block page, and seeing it makes the cause obvious in the logs.
+    const snippet = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
+    throw new Error(`Livescore ${res.status} for ${yyyymmdd}${snippet ? `: ${snippet}` : ""}`);
+  }
   const json = (await res.json()) as { Stages?: LsStage[] };
   const comp = competition();
   const out: ProviderResult[] = [];
@@ -96,11 +101,22 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
   return out;
 }
 
-/** Results for the given UTC dates (YYYYMMDD). Used by the sync engine. */
-export async function fetchResultsForDates(dates: string[]): Promise<ProviderResult[]> {
+export type FetchError = { date: string; message: string };
+export type FetchResults = { results: ProviderResult[]; errors: FetchError[] };
+
+/** Results for the given UTC dates (YYYYMMDD). Used by the sync engine.
+ * A failed date is collected into `errors` rather than rejecting the whole
+ * batch — one bad/blocked date shouldn't drop the scores from every other day. */
+export async function fetchResultsForDates(dates: string[]): Promise<FetchResults> {
   const unique = [...new Set(dates)].filter(Boolean);
-  const days = await Promise.all(unique.map((d) => fetchDate(d)));
-  return days.flat();
+  const settled = await Promise.allSettled(unique.map((d) => fetchDate(d)));
+  const results: ProviderResult[] = [];
+  const errors: FetchError[] = [];
+  settled.forEach((s, i) => {
+    if (s.status === "fulfilled") results.push(...s.value);
+    else errors.push({ date: unique[i], message: s.reason instanceof Error ? s.reason.message : String(s.reason) });
+  });
+  return { results, errors };
 }
 
 /** Full schedule across the tournament date range — for the admin import action. */
@@ -112,7 +128,7 @@ export async function fetchSchedule(): Promise<ProviderFixture[]> {
     const d = new Date(t);
     dates.push(`${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`);
   }
-  const all = await fetchResultsForDates(dates);
+  const { results: all } = await fetchResultsForDates(dates);
   // Dedupe by match id (a match only appears on its own date, but be safe).
   const byId = new Map<string, ProviderFixture>();
   for (const r of all) {

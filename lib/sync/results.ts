@@ -1,8 +1,15 @@
 import { updateTag, revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchResultsForDates, type ProviderResult } from "@/lib/providers/livescore";
+import { fetchResultsForDates, type ProviderResult, type FetchError } from "@/lib/providers/livescore";
 
-export type SyncSummary = { candidates: number; updated: number; calledProvider: boolean };
+export type SyncSummary = {
+  candidates: number;
+  updated: number;
+  calledProvider: boolean;
+  // Per-date upstream failures (e.g. a datacenter-IP bot-block). Non-fatal:
+  // other dates still sync. Surfaced so the cron log shows the real cause.
+  providerErrors: FetchError[];
+};
 
 type Candidate = {
   id: string;
@@ -65,12 +72,16 @@ export async function syncResults(): Promise<SyncSummary> {
 
   const candidates = (data as Candidate[] | null) ?? [];
   if (candidates.length === 0) {
-    return { candidates: 0, updated: 0, calledProvider: false };
+    return { candidates: 0, updated: 0, calledProvider: false, providerErrors: [] };
   }
 
   // Fetch only the dates we actually need.
   const dates = candidates.map((c) => utcDateKey(c.kickoff_time));
-  const events = await fetchResultsForDates(dates);
+  const { results: events, errors: providerErrors } = await fetchResultsForDates(dates);
+  // Make upstream failures visible in Vercel logs (the cron itself stays green).
+  if (providerErrors.length > 0) {
+    console.error("[sync] livescore fetch errors:", JSON.stringify(providerErrors));
+  }
 
   const byRef = new Map<string, ProviderResult>();
   const byPair = new Map<string, ProviderResult>();
@@ -109,5 +120,5 @@ export async function syncResults(): Promise<SyncSummary> {
     revalidatePath("/admin");
   }
 
-  return { candidates: candidates.length, updated, calledProvider: true };
+  return { candidates: candidates.length, updated, calledProvider: true, providerErrors };
 }

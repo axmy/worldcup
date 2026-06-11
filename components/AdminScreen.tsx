@@ -158,7 +158,7 @@ function Fixtures({ matches, now, onNew, onEdit, onDeleted, onFlash }: { matches
         <button className="btn-sport tap" onClick={onNew} style={{ flex: 1, padding: "13px", borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "var(--font-display)", fontSize: 15 }}>
           <Icon name="plusC" size={18} stroke={2.4} /> Add fixture
         </button>
-        <button className="btn-ghost tap" onClick={importNow} disabled={isPending} title="Import the schedule from API-Football" style={{ padding: "0 16px", borderRadius: 13, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+        <button className="btn-ghost tap" onClick={importNow} disabled={isPending} title="Import the schedule from Livescore" style={{ padding: "0 16px", borderRadius: 13, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
           <Icon name="cal" size={16} /> {isPending ? "Importing…" : "Import"}
         </button>
       </div>
@@ -279,7 +279,7 @@ function Results({ matches, now, onPublished, onFlash }: { matches: Match[]; now
 
   return (
     <div>
-      <button className="btn-ghost tap" onClick={syncNow} disabled={syncing} title="Fetch final scores from API-Football now" style={{ width: "100%", padding: "11px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-dim)", marginBottom: 16 }}>
+      <button className="btn-ghost tap" onClick={syncNow} disabled={syncing} title="Fetch final scores from Livescore now" style={{ width: "100%", padding: "11px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, color: "var(--text-dim)", marginBottom: 16 }}>
         <Icon name="bolt" size={16} stroke={2.4} /> {syncing ? "Syncing…" : "Sync results now"}
       </button>
       <SectionLabel>Awaiting result · {pending.length}</SectionLabel>
@@ -649,13 +649,13 @@ function Ops({ onFlash }: { onFlash: (msg: string) => void }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={card}>
         <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--text-faint)", textTransform: "uppercase" }}>Seed fixtures</div>
-        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>Load the schedule after a reset — 72 group fixtures with real times plus 32 knockout placeholders (closed; edit teams/times as results come in). No API needed; the API import also fills in provider ids for auto-scoring.</p>
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>Load the schedule after a reset — 72 group fixtures with real times plus 32 knockout placeholders (closed; edit teams/times as results come in). No key needed; the Livescore import also fills in provider ids for auto-scoring.</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <button className="btn-sport tap" onClick={seedBuiltIn} disabled={busy} style={{ padding: "10px 18px", borderRadius: 11, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 8 }}>
             <Icon name="cal" size={16} /> {busy ? "Working…" : "Seed built-in schedule"}
           </button>
-          <button className="btn-ghost tap" onClick={seed} disabled={busy} title="Requires API-Football key" style={{ padding: "10px 16px", borderRadius: 11, fontSize: 13.5, color: "var(--text-dim)", display: "inline-flex", alignItems: "center", gap: 7 }}>
-            <Icon name="bolt" size={15} /> Import from API
+          <button className="btn-ghost tap" onClick={seed} disabled={busy} title="Import the schedule from Livescore (no key needed)" style={{ padding: "10px 16px", borderRadius: 11, fontSize: 13.5, color: "var(--text-dim)", display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <Icon name="bolt" size={15} /> Import from Livescore
           </button>
         </div>
       </div>

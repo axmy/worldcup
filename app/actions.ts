@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { fetchSchedule } from "@/lib/providers/apiFootball";
+import { fetchSchedule } from "@/lib/providers/livescore";
 import { syncResults } from "@/lib/sync/results";
 
 // The app's public origin for building redirect URLs (OAuth callback, password
@@ -501,7 +501,7 @@ export async function updateSettings(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-// ---------------- Results automation (API-Football) ----------------
+// ---------------- Results automation (Livescore) ----------------
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -514,9 +514,9 @@ async function requireAdmin() {
   return { supabase, error: null };
 }
 
-// Pull the competition schedule from API-Football and upsert fixtures (matched
-// by the provider's fixture id). Runs as the admin (RLS lets admins write
-// matches). New fixtures default to "closes at kickoff" — the admin can edit.
+// Pull the competition schedule from Livescore and upsert fixtures (matched by
+// the provider's match id). Runs as the admin (RLS lets admins write matches).
+// New fixtures default to "closes at kickoff" — the admin can edit.
 export async function importFixtures() {
   const { supabase, error: authErr } = await requireAdmin();
   if (authErr) return { error: authErr };
@@ -531,7 +531,7 @@ export async function importFixtures() {
   const { data: existingRows } = await supabase
     .from("matches")
     .select("id, external_ref")
-    .eq("provider", "api-football")
+    .eq("provider", "livescore")
     .not("external_ref", "is", null);
   const existing = new Map(
     ((existingRows as { id: string; external_ref: string }[] | null) ?? []).map((r) => [r.external_ref, r.id]),
@@ -558,7 +558,7 @@ export async function importFixtures() {
         deadline_value: "0",
         submission_deadline: f.kickoff_time, // placeholder; recomputed by trigger
         external_ref: f.external_ref,
-        provider: "api-football",
+        provider: "livescore",
       });
       if (!error) inserted++;
     }
