@@ -11,8 +11,9 @@ import { PredictSheet } from "@/components/PredictSheet";
 
 export type PredMap = Record<string, Pred>;
 
-// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City.
-const KICKOFF_MS = new Date("2026-06-11T19:00:00-06:00").getTime();
+// 2026 FIFA World Cup opener — Estadio Azteca, Mexico City, 13:00 local (19:00 UTC).
+// Must match the fixture kickoff in supabase/migrations/0023_wc2026_real_schedule.sql.
+const KICKOFF_MS = new Date("2026-06-11T19:00:00Z").getTime();
 const HOST_FLAGS = ["Mexico", "United States", "Canada"].map((h) => flagEmoji(h)).join(" ");
 
 // Slim stadium ribbon shown atop the Matches screen.

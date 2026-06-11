@@ -3,8 +3,9 @@
 import type { CSSProperties } from "react";
 import { useNow } from "@/components/ui";
 
-// 2026 FIFA World Cup opening match — June 11, 2026, 21:00 CET, Mexico City.
-const KICKOFF_MS = new Date("2026-06-11T21:00:00+01:00").getTime();
+// 2026 FIFA World Cup opening match — June 11, 2026, 13:00 in Mexico City (19:00 UTC).
+// Must match the fixture kickoff in supabase/migrations/0023_wc2026_real_schedule.sql.
+const KICKOFF_MS = new Date("2026-06-11T19:00:00Z").getTime();
 
 const GREEN = "oklch(0.78 0.16 155)";
 
@@ -46,6 +47,10 @@ function Colon({ compact }: { compact: boolean }) {
 // Segmented kickoff countdown. `compact` fits it into the narrower auth hero.
 export function KickoffCountdown({ compact = false }: { compact?: boolean }) {
   const now = useNow(1000);
+  // Kickoff in the visitor's own timezone; only after mount so SSR and client agree.
+  const localKickoff = now === null
+    ? ""
+    : new Date(KICKOFF_MS).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   let d = 0, h = 0, m = 0, s = 0;
   if (now !== null) {
     const sec = Math.max(0, Math.floor((KICKOFF_MS - now) / 1000));
@@ -88,7 +93,7 @@ export function KickoffCountdown({ compact = false }: { compact?: boolean }) {
         {compact ? (
           <>June 11, 2026 · Mexico City</>
         ) : (
-          <>June 11, 2026 — 21:00 CET <span aria-hidden style={{ margin: "0 8px" }}>·</span> Mexico City <span aria-hidden style={{ margin: "0 8px" }}>·</span> Opening Match</>
+          <>June 11, 2026{localKickoff && <> — {localKickoff} your time</>} <span aria-hidden style={{ margin: "0 8px" }}>·</span> Mexico City <span aria-hidden style={{ margin: "0 8px" }}>·</span> Opening Match</>
         )}
       </p>
     </div>
