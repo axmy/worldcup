@@ -23,7 +23,8 @@ jobs:
             exit 1
           fi
           # Capture body + status separately so failures are diagnosable in the log.
-          code=$(curl -sS -X GET "$SYNC_URL" \
+          # -L: the apex domain 308-redirects to www — follow it rather than fail.
+          code=$(curl -sSL -X GET "$SYNC_URL" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -o /tmp/sync-body.txt -w "%{http_code}")
           echo "HTTP $code"
