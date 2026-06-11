@@ -591,6 +591,10 @@ export async function syncResultsNow() {
   if (authErr) return { error: authErr };
   try {
     const summary = await syncResults();
+    // The engine only revalidateTags (it must also run in the cron Route
+    // Handler, where updateTag is forbidden); from this Server Action we can
+    // updateTag so the admin's own refresh sees the new scores immediately.
+    if (summary.updated > 0 || summary.liveUpdated > 0) updateTag("matches");
     return { ok: true, ...summary };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Sync failed." };

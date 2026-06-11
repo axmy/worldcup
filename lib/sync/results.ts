@@ -1,4 +1,4 @@
-import { updateTag, revalidatePath } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchResultsForDates, type ProviderResult, type FetchError } from "@/lib/providers/livescore";
 
@@ -169,7 +169,10 @@ export async function syncResults(): Promise<SyncSummary> {
   }
 
   if (updated > 0 || liveUpdated > 0) {
-    updateTag("matches");
+    // revalidateTag, not updateTag: this runs inside the cron Route Handler,
+    // where updateTag throws (it's Server-Action-only). The admin server
+    // action layers updateTag on top for read-your-own-writes.
+    revalidateTag("matches", "max");
     revalidatePath("/matches");
     revalidatePath("/picks");
     revalidatePath("/admin");
