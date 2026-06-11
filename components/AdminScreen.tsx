@@ -25,6 +25,8 @@ export type Settings = {
   points_exact: number;
   points_outcome: number;
   submission_mode: "single" | "multiple";
+  deadline_type: "minutes_before_kickoff" | "minutes_after_kickoff";
+  deadline_value: string;
   brand_name: string;
   brand_tagline: string;
   login_headline: string;
@@ -413,6 +415,22 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
   const [theme, setTheme] = useState<"dark" | "light">(settings.theme);
   const [accent, setAccent] = useState(settings.accent);
 
+  // Deadline policy → three UI modes mapped onto (deadline_type, deadline_value):
+  //   before → minutes_before_kickoff / N    at → minutes_before_kickoff / 0
+  //   after  → minutes_after_kickoff  / N
+  const initialMode: "before" | "at" | "after" =
+    settings.deadline_type === "minutes_after_kickoff"
+      ? "after"
+      : settings.deadline_value === "0"
+      ? "at"
+      : "before";
+  const [dlMode, setDlMode] = useState<"before" | "at" | "after">(initialMode);
+  const [dlMin, setDlMin] = useState<number>(
+    initialMode === "at" ? 75 : Math.max(0, Number(settings.deadline_value) || 75)
+  );
+  const dlType = dlMode === "after" ? "minutes_after_kickoff" : "minutes_before_kickoff";
+  const dlValue = dlMode === "at" ? "0" : String(dlMin);
+
   function save(formData: FormData) {
     startTransition(async () => {
       await updateSettings(formData);
@@ -496,6 +514,42 @@ function SettingsForm({ settings, onSaved }: { settings: Settings; onSaved: () =
           </select>
           <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
             Each player makes one prediction per match (counts in every league they join), so this edit rule is platform-wide.
+          </p>
+        </div>
+
+        {/* ── Deadline policy (platform-wide, applies to every match) ── */}
+        <input type="hidden" name="deadline_type" value={dlType} />
+        <input type="hidden" name="deadline_value" value={dlValue} />
+        <div>
+          <label style={lab}>SUBMISSION DEADLINE · APPLIES TO EVERY MATCH</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: 5, background: "var(--bg-3)", borderRadius: 12 }}>
+            {([
+              ["before", "Before kickoff"],
+              ["at", "At kickoff"],
+              ["after", "After kickoff"],
+            ] as const).map(([m, label]) => (
+              <button key={m} type="button" className="tap" onClick={() => setDlMode(m)}
+                style={{ padding: "9px 6px", borderRadius: 9, fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 12.5, lineHeight: 1.1,
+                  background: dlMode === m ? "var(--accent)" : "transparent", color: dlMode === m ? "var(--accent-ink)" : "var(--text-dim)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {dlMode !== "at" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input type="number" min={dlMode === "after" ? 1 : 0} value={dlMin}
+                onChange={(e) => setDlMin(Math.max(0, Number(e.target.value) || 0))}
+                style={{ ...sel, width: 110 }} />
+              <span style={{ fontSize: 12.5, color: "var(--text-dim)" }}>
+                minutes {dlMode === "after" ? "into the match" : "before kickoff"}
+              </span>
+            </div>
+          )}
+          <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
+            {dlMode === "before" && `Picks lock ${dlMin} min before each kickoff.`}
+            {dlMode === "at" && "Picks stay open right up to kickoff."}
+            {dlMode === "after" && `Picks stay open until ${dlMin} min into the match (e.g. 45 = before the second half).`}
+            {" "}Saving re-applies this to all fixtures.
           </p>
         </div>
 

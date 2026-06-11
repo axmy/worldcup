@@ -1,13 +1,37 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { LeaderboardRow } from "@/lib/types";
-import { Avatar, Empty, Icon, ScreenHead } from "@/components/ui";
+import { Avatar, Empty, Icon, ScreenHead, fmtDeadline } from "@/components/ui";
 
 const PLACE_COLOR: Record<number, string> = {
   1: "var(--accent)",
   2: "oklch(0.78 0.02 255)",
   3: "oklch(0.62 0.07 50)",
+};
+
+// Shared 6-column grid for the stats table (rank · player · MP · Ex · Out · Pts).
+const STAT_ROW: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "26px 1fr 30px 30px 34px 44px",
+  alignItems: "center",
+  gap: 8,
+  padding: "10px 13px",
+};
+const STAT_H: CSSProperties = {
+  fontFamily: "var(--font-display)",
+  fontSize: 10.5,
+  fontWeight: 700,
+  letterSpacing: ".04em",
+  textTransform: "uppercase",
+  color: "var(--text-faint)",
+};
+const STAT_CELL: CSSProperties = {
+  fontFamily: "var(--font-score)",
+  fontWeight: 700,
+  fontSize: 13.5,
+  textAlign: "right",
+  color: "var(--text-dim)",
 };
 
 export function LeaderboardScreen({
@@ -16,6 +40,7 @@ export function LeaderboardScreen({
   title = "Leaderboard",
   subtitle,
   header,
+  rules,
   meRank,
   cappedAt,
 }: {
@@ -24,13 +49,14 @@ export function LeaderboardScreen({
   title?: string;
   subtitle?: string;
   header?: ReactNode;
+  // Per-league scoring + the platform deadline, shown as chips under the title.
+  rules?: { exact: number; outcome: number; mode: "single" | "multiple"; deadlineType: string; deadlineValue: string };
   // The viewer's own standing — used to pin their row when they rank below the
   // rendered top-N (large global boards are capped for performance).
-  meRank?: { rank: number; total_points: number; scored_matches: number; exact_hits: number };
+  meRank?: { rank: number; total_points: number; scored_matches: number; exact_hits: number; outcome_hits: number };
   cappedAt?: number;
 }) {
   const top3 = board.slice(0, 3);
-  const rest = board.slice(3);
   const myIdx = board.findIndex((u) => u.user_id === meId);
   const myRank = myIdx + 1;
   // When the board is capped and the viewer isn't in it, show their real rank.
@@ -40,6 +66,21 @@ export function LeaderboardScreen({
     <div className="screen-enter">
       {header}
       <ScreenHead title={title} sub={subtitle ?? `${board.length} player${board.length === 1 ? "" : "s"}`} />
+
+      {rules && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "-4px 0 18px" }}>
+          {[
+            ["bolt", `${rules.exact} pt${rules.exact === 1 ? "" : "s"} exact · ${rules.outcome} result`],
+            ["lock", rules.mode === "single" ? "One pick — no edits" : "Editable until deadline"],
+            ["clock", fmtDeadline(rules.deadlineType, rules.deadlineValue)],
+          ].map(([icon, text]) => (
+            <span key={text} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--text-dim)", background: "var(--bg-3)", border: "1px solid var(--line-soft)", borderRadius: 7, padding: "4px 9px", whiteSpace: "nowrap" }}>
+              <Icon name={icon} size={12.5} style={{ color: "var(--text-faint)", flexShrink: 0 }} />
+              {text}
+            </span>
+          ))}
+        </div>
+      )}
 
       {board.length === 0 && <Empty icon="trophy" text="No scores yet — predictions are still rolling in." />}
 
@@ -83,40 +124,41 @@ export function LeaderboardScreen({
         </div>
       )}
 
-      {/* ranked list */}
-      {rest.length > 0 && (
+      {/* ranked stats table (rank · player · MP · exact · outcome · pts) */}
+      {board.length > 0 && (
         <div className="card-sport" style={{ overflow: "hidden" }}>
-          {rest.map((u, i) => {
-            const rank = i + 4;
+          <div style={STAT_ROW} aria-hidden>
+            <span style={{ ...STAT_H, textAlign: "center" }}>#</span>
+            <span style={STAT_H}>Player</span>
+            <span style={{ ...STAT_H, textAlign: "right" }} title="Matches played">MP</span>
+            <span style={{ ...STAT_H, textAlign: "right" }} title="Exact scorelines">Ex</span>
+            <span style={{ ...STAT_H, textAlign: "right" }} title="Correct result, wrong score">Out</span>
+            <span style={{ ...STAT_H, textAlign: "right", color: "var(--text-dim)" }}>Pts</span>
+          </div>
+          {board.map((u, i) => {
+            const rank = i + 1;
             const isMe = u.user_id === meId;
             return (
               <div
                 key={u.user_id}
                 className="row-hover"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "34px 1fr auto",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 15px",
-                  borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
+                  ...STAT_ROW,
+                  borderTop: "1px solid var(--line-soft)",
                   background: isMe ? "color-mix(in oklab, var(--accent) 12%, transparent)" : "transparent",
                 }}
               >
-                <span className="display num" style={{ fontSize: 16, fontWeight: 800, color: isMe ? "var(--accent)" : "var(--text-faint)", textAlign: "center" }}>{rank}</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-                  <Avatar name={u.display_name} size={34} isMe={isMe} />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="display" style={{ fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {u.display_name}
-                      {isMe && <span style={{ color: "var(--accent)", fontWeight: 700 }}> · you</span>}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
-                      {u.exact_hits} exact · {u.scored_matches} scored
-                    </div>
-                  </div>
+                <span className="num" style={{ fontWeight: 800, fontSize: 14, textAlign: "center", color: rank <= 3 ? PLACE_COLOR[rank] : isMe ? "var(--accent)" : "var(--text-faint)" }}>{rank}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                  <Avatar name={u.display_name} size={26} isMe={isMe} />
+                  <span className="display" style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {u.display_name}{isMe && <span style={{ color: "var(--accent)" }}> · you</span>}
+                  </span>
                 </div>
-                <span className="display num" style={{ fontSize: 19, fontWeight: 800, color: isMe ? "var(--accent)" : "var(--text)" }}>{u.total_points}</span>
+                <span style={STAT_CELL}>{u.scored_matches}</span>
+                <span style={{ ...STAT_CELL, color: "var(--accent)" }}>{u.exact_hits}</span>
+                <span style={STAT_CELL}>{u.outcome_hits}</span>
+                <span className="num" style={{ fontWeight: 800, fontSize: 16, textAlign: "right", color: isMe ? "var(--accent)" : "var(--text)" }}>{u.total_points}</span>
               </div>
             );
           })}
@@ -128,25 +170,21 @@ export function LeaderboardScreen({
         <div
           className="card-sport"
           style={{
+            ...STAT_ROW,
             marginTop: 14,
-            display: "grid",
-            gridTemplateColumns: "44px 1fr auto",
-            alignItems: "center",
-            gap: 12,
-            padding: "12px 15px",
             border: "1px solid color-mix(in oklab, var(--accent) 45%, transparent)",
             background: "color-mix(in oklab, var(--accent) 12%, transparent)",
           }}
         >
-          <span className="display num" style={{ fontSize: 16, fontWeight: 800, color: "var(--accent)", textAlign: "center" }}>#{meRank.rank}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-            <Avatar name="You" size={34} isMe />
-            <div style={{ minWidth: 0 }}>
-              <div className="display" style={{ fontSize: 15, fontWeight: 700 }}>You</div>
-              <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{meRank.exact_hits} exact · {meRank.scored_matches} scored</div>
-            </div>
+          <span className="num" style={{ fontWeight: 800, fontSize: 14, textAlign: "center", color: "var(--accent)" }}>{meRank.rank}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+            <Avatar name="You" size={26} isMe />
+            <span className="display" style={{ fontSize: 13.5, fontWeight: 700 }}>You</span>
           </div>
-          <span className="display num" style={{ fontSize: 19, fontWeight: 800, color: "var(--accent)" }}>{meRank.total_points}</span>
+          <span style={STAT_CELL}>{meRank.scored_matches}</span>
+          <span style={{ ...STAT_CELL, color: "var(--accent)" }}>{meRank.exact_hits}</span>
+          <span style={STAT_CELL}>{meRank.outcome_hits}</span>
+          <span className="num" style={{ fontWeight: 800, fontSize: 16, textAlign: "right", color: "var(--accent)" }}>{meRank.total_points}</span>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { createClient, getUserId } from "@/lib/supabase/server";
+import { getSettingsCached } from "@/lib/data";
 import { LeaguesScreen } from "@/components/LeaguesScreen";
 import type { LeagueSummary } from "@/lib/types";
 
@@ -53,5 +54,11 @@ export default async function LeaguesPage() {
 
   const inGlobal = leagues.some((l) => l.is_global);
 
-  return <LeaguesScreen leagues={leagues} meId={userId} inGlobal={inGlobal} />;
+  const settings = await getSettingsCached();
+  const deadline = {
+    type: settings?.deadline_type ?? "minutes_before_kickoff",
+    value: settings?.deadline_value ?? "75",
+  };
+
+  return <LeaguesScreen leagues={leagues} meId={userId} inGlobal={inGlobal} deadline={deadline} />;
 }

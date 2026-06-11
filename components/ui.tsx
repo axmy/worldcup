@@ -413,6 +413,14 @@ export function dayKey(ms: number) {
   return new Date(ms).toLocaleDateString("en-CA", { timeZone: TOURNAMENT_TZ });
 }
 
+/** Human label for the platform-wide submission deadline policy. */
+export function fmtDeadline(type: string, value: string) {
+  const n = Number(value) || 0;
+  if (type === "minutes_after_kickoff") return `Closes ${n} min after kickoff`;
+  if (n === 0) return "Closes at kickoff";
+  return `Closes ${n} min before kickoff`;
+}
+
 /* ── Score stepper (one team) ── */
 export function Stepper({
   value,

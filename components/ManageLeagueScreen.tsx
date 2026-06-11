@@ -8,7 +8,7 @@ import {
   removeMember,
   deleteLeague,
 } from "@/app/actions";
-import { Avatar, Icon, ScreenHead, SectionLabel } from "@/components/ui";
+import { Avatar, Icon, ScreenHead, SectionLabel, fmtDay, teamCode } from "@/components/ui";
 import { ShareBar } from "@/components/ShareBar";
 import { Toast } from "@/components/MatchesScreen";
 
@@ -23,6 +23,20 @@ export type ManageLeague = {
 };
 
 export type ManageMember = { user_id: string; display_name: string; points: number };
+
+export type MemberPick = {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  kickoff_time: string;
+  result_home: number | null;
+  result_away: number | null;
+  user_id: string;
+  display_name: string;
+  pred_home: number;
+  pred_away: number;
+  points: number | null;
+};
 
 const field: CSSProperties = {
   background: "var(--bg-3)",
@@ -58,10 +72,12 @@ const card: CSSProperties = {
 export function ManageLeagueScreen({
   league,
   members,
+  picks = [],
   shareUrl,
 }: {
   league: ManageLeague;
   members: ManageMember[];
+  picks?: MemberPick[];
   shareUrl?: string;
 }) {
   const router = useRouter();
@@ -243,6 +259,9 @@ export function ManageLeagueScreen({
         })}
       </div>
 
+      {/* Member picks (locked matches only) */}
+      <MemberPicks picks={picks} ownerId={league.created_by} />
+
       {/* Danger zone */}
       <div style={{ border: "1px solid color-mix(in oklab, var(--neg) 40%, var(--line-soft))", borderRadius: 14, padding: 14 }}>
         <div className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", color: "var(--neg)", textTransform: "uppercase", marginBottom: 10 }}>
@@ -255,5 +274,84 @@ export function ManageLeagueScreen({
 
       {toast && <Toast msg={toast} />}
     </div>
+  );
+}
+
+/* ── Member picks, grouped by match (only matches that have locked) ── */
+function MemberPicks({ picks, ownerId }: { picks: MemberPick[]; ownerId: string | null }) {
+  // picks arrive ordered by kickoff asc, then name — preserve that grouping.
+  const groups: { meta: MemberPick; rows: MemberPick[] }[] = [];
+  const index = new Map<string, number>();
+  for (const p of picks) {
+    let i = index.get(p.match_id);
+    if (i === undefined) {
+      i = groups.length;
+      index.set(p.match_id, i);
+      groups.push({ meta: p, rows: [] });
+    }
+    groups[i].rows.push(p);
+  }
+
+  return (
+    <>
+      <SectionLabel right={<span style={{ fontSize: 12, color: "var(--text-faint)" }}>{groups.length} match{groups.length === 1 ? "" : "es"}</span>}>
+        Submitted picks
+      </SectionLabel>
+      {groups.length === 0 ? (
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--line-soft)", borderRadius: 14, padding: "16px 15px", marginBottom: 22, fontSize: 13, color: "var(--text-faint)" }}>
+          Picks appear here once a match locks (45 min after kickoff). Nothing locked yet.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
+          {groups.map((g, gi) => {
+            const m = g.meta;
+            const hasResult = m.result_home !== null && m.result_away !== null;
+            return (
+              <details key={m.match_id} open={gi === 0} style={{ background: "var(--bg-2)", border: "1px solid var(--line-soft)", borderRadius: 14, overflow: "hidden" }}>
+                <summary style={{ listStyle: "none", cursor: "pointer", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className="det-chevron" style={{ display: "inline-flex", flexShrink: 0, transition: "transform .15s" }}>
+                    <Icon name="chevR" size={15} style={{ color: "var(--text-faint)" }} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="display" style={{ fontSize: 14.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {teamCode(m.home_team)} <span style={{ color: "var(--text-faint)" }}>v</span> {teamCode(m.away_team)}
+                    </div>
+                    <div suppressHydrationWarning style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 1 }}>
+                      {fmtDay(new Date(m.kickoff_time).getTime())} · {g.rows.length} pick{g.rows.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                  {hasResult ? (
+                    <span className="num" style={{ fontFamily: "var(--font-score)", fontWeight: 800, fontSize: 16, color: "var(--accent)" }}>
+                      {m.result_home}–{m.result_away}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", color: "var(--text-faint)", textTransform: "uppercase" }}>No result</span>
+                  )}
+                </summary>
+                <div style={{ borderTop: "1px solid var(--line-soft)" }}>
+                  {g.rows.map((r) => (
+                    <div key={r.user_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderTop: "1px solid var(--line-soft)" }}>
+                      <Avatar name={r.display_name} size={28} />
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {r.display_name}
+                        {r.user_id === ownerId && <span style={{ color: "var(--accent)", fontSize: 11, marginLeft: 6 }}>Owner</span>}
+                      </div>
+                      <span className="num" style={{ fontFamily: "var(--font-score)", fontWeight: 800, fontSize: 15, color: "var(--text)" }}>
+                        {r.pred_home}–{r.pred_away}
+                      </span>
+                      {r.points !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 800, minWidth: 38, textAlign: "right", color: r.points > 0 ? "var(--pos)" : "var(--text-faint)" }}>
+                          {r.points > 0 ? `+${r.points}` : "0"} pts
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }

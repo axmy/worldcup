@@ -479,7 +479,24 @@ export async function updateSettings(formData: FormData) {
     })
     .eq("id", 1);
   if (error) throw new Error(error.message);
+
+  // Platform-wide deadline policy: rewrite every match's rule (the DB recomputes
+  // each match's submission_deadline from its kickoff_time).
+  const dType = String(formData.get("deadline_type") ?? "");
+  const dValue = String(formData.get("deadline_value") ?? "").trim();
+  if (
+    (dType === "minutes_before_kickoff" || dType === "minutes_after_kickoff") &&
+    /^\d+$/.test(dValue)
+  ) {
+    const { error: dErr } = await supabase.rpc("apply_deadline_policy", {
+      p_type: dType,
+      p_value: dValue,
+    });
+    if (dErr) throw new Error(dErr.message);
+  }
+
   updateTag("settings");
+  updateTag("matches");
   revalidatePath("/admin");
   revalidatePath("/", "layout");
 }

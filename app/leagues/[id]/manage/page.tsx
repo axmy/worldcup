@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/site";
-import { ManageLeagueScreen, type ManageLeague, type ManageMember } from "@/components/ManageLeagueScreen";
+import { ManageLeagueScreen, type ManageLeague, type ManageMember, type MemberPick } from "@/components/ManageLeagueScreen";
 import type { LeaderboardRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +27,10 @@ export default async function ManageLeaguePage({ params }: { params: Promise<{ i
   const isOwner = league.created_by === userId || !!profile?.is_admin;
   if (!isOwner) redirect(`/leagues/${id}`);
 
-  const [{ data: memberRows }, { data: standings }] = await Promise.all([
+  const [{ data: memberRows }, { data: standings }, { data: pickRows }] = await Promise.all([
     supabase.from("league_members").select("user_id, profiles(display_name)").eq("league_id", id),
     supabase.rpc("league_standings", { p_league_id: id }),
+    supabase.rpc("league_member_picks", { p_league_id: id }),
   ]);
 
   // Each participant's points in THIS league, so the organizer sees how they're doing.
@@ -50,7 +51,9 @@ export default async function ManageLeaguePage({ params }: { params: Promise<{ i
     a.display_name.localeCompare(b.display_name),
   );
 
+  const picks = ((pickRows as MemberPick[] | null) ?? []);
+
   const shareUrl = await getSiteUrl();
 
-  return <ManageLeagueScreen league={league as ManageLeague} members={members} shareUrl={shareUrl} />;
+  return <ManageLeagueScreen league={league as ManageLeague} members={members} picks={picks} shareUrl={shareUrl} />;
 }

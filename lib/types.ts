@@ -1,5 +1,6 @@
 export type DeadlineType =
   | "minutes_before_kickoff"
+  | "minutes_after_kickoff"
   | "fixed_time_of_day"
   | "fixed_datetime";
 
@@ -32,6 +33,7 @@ export type LeaderboardRow = {
   total_points: number;
   scored_matches: number;
   exact_hits: number;
+  outcome_hits: number;
 };
 
 export type League = {
@@ -55,6 +57,9 @@ export type AppSettings = {
   points_exact: number;
   points_outcome: number;
   submission_mode: "single" | "multiple";
+  // Platform-wide deadline policy applied to every match.
+  deadline_type: "minutes_before_kickoff" | "minutes_after_kickoff";
+  deadline_value: string;
   brand_name: string;
   brand_tagline: string;
   login_headline: string;

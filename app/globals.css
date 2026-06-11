@@ -100,6 +100,14 @@ body::before {
   color: var(--accent-ink);
 }
 
+/* Native <details> used for the league owner's per-match picks list. */
+summary::-webkit-details-marker {
+  display: none;
+}
+details[open] > summary .det-chevron {
+  transform: rotate(90deg);
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

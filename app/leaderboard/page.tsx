@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import { getSettingsCached } from "@/lib/data";
 import { LeaderboardScreen } from "@/components/LeaderboardScreen";
+import { LeaderboardTabs } from "@/components/LeaderboardTabs";
 import { Brand } from "@/components/ui";
 import type { LeaderboardRow } from "@/lib/types";
 
@@ -10,6 +11,7 @@ type RankRow = {
   total_points: number;
   scored_matches: number;
   exact_hits: number;
+  outcome_hits: number;
   total_players: number;
 };
 
@@ -39,13 +41,24 @@ export default async function LeaderboardPage() {
   const total = (count as number | null) ?? meRow?.total_players ?? board.length;
 
   const screen = (
-    <LeaderboardScreen
-      board={board}
-      meId={userId ?? ""}
-      title="Global Leaderboard"
-      subtitle={`The official competition · ${total.toLocaleString()} player${total === 1 ? "" : "s"}`}
-      meRank={meRow ? { rank: meRow.rank, total_points: meRow.total_points, scored_matches: meRow.scored_matches, exact_hits: meRow.exact_hits } : undefined}
-      cappedAt={TOP_N}
+    <LeaderboardTabs
+      info={{
+        points_exact: settings?.points_exact ?? 3,
+        points_outcome: settings?.points_outcome ?? 1,
+        submission_mode: settings?.submission_mode === "single" ? "single" : "multiple",
+        deadline_type: settings?.deadline_type ?? "minutes_after_kickoff",
+        deadline_value: settings?.deadline_value ?? "45",
+      }}
+      board={
+        <LeaderboardScreen
+          board={board}
+          meId={userId ?? ""}
+          title="Global Leaderboard"
+          subtitle={`The official competition · ${total.toLocaleString()} player${total === 1 ? "" : "s"}`}
+          meRank={meRow ? { rank: meRow.rank, total_points: meRow.total_points, scored_matches: meRow.scored_matches, exact_hits: meRow.exact_hits, outcome_hits: meRow.outcome_hits } : undefined}
+          cappedAt={TOP_N}
+        />
+      }
     />
   );
 

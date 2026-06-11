@@ -52,7 +52,13 @@ async function fetchFixtures(): Promise<ApiFixture[]> {
   });
   if (!res.ok) throw new Error(`API-Football request failed: ${res.status}`);
   const json = (await res.json()) as { response?: ApiFixture[]; errors?: unknown };
-  if (!json.response) throw new Error(`API-Football returned no fixtures (${JSON.stringify(json.errors ?? {})}).`);
+  // On a rejected request the API returns response:[] alongside a populated
+  // `errors` (e.g. {"plan":"Free plans do not have access to this season"} or a
+  // bad token). Surface it instead of silently treating it as "no fixtures".
+  const errs = json.errors;
+  const hasErr = Array.isArray(errs) ? errs.length > 0 : !!errs && Object.keys(errs).length > 0;
+  if (hasErr) throw new Error(`API-Football error: ${JSON.stringify(errs)}`);
+  if (!json.response) throw new Error("API-Football returned no fixtures.");
   return json.response;
 }
 
