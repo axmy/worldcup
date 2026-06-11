@@ -62,6 +62,8 @@ export default async function AdminPage() {
         points_exact: s.points_exact ?? 3,
         points_outcome: s.points_outcome ?? 1,
         submission_mode: s.submission_mode === "single" ? "single" : "multiple",
+        deadline_type: s.deadline_type === "minutes_after_kickoff" ? "minutes_after_kickoff" : "minutes_before_kickoff",
+        deadline_value: s.deadline_value ?? "75",
         brand_name: s.brand_name ?? "Kickoff",
         brand_tagline: s.brand_tagline ?? "WC26 · Predictor",
         login_headline: s.login_headline ?? "Call the scoreline. Own the board.",

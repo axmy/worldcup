@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { LeagueSummary } from "@/lib/types";
 import { joinLeague, joinGlobal } from "@/app/actions";
 import { CreateLeagueForm } from "@/components/CreateLeagueForm";
-import { Empty, Icon, ScreenHead } from "@/components/ui";
+import { Empty, Icon, ScreenHead, fmtDeadline } from "@/components/ui";
 
 type JoinState = { error?: string } | null;
 
@@ -32,7 +32,17 @@ function Tag({ label, accent }: { label: string; accent?: boolean }) {
   );
 }
 
-export function LeaguesScreen({ leagues, meId, inGlobal }: { leagues: LeagueSummary[]; meId: string; inGlobal: boolean }) {
+// Small icon + text chip describing a league's rules/deadline.
+function Meta({ icon, text }: { icon: string; text: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--text-dim)", background: "var(--bg-3)", border: "1px solid var(--line-soft)", borderRadius: 7, padding: "3px 8px", whiteSpace: "nowrap" }}>
+      <Icon name={icon} size={12.5} style={{ color: "var(--text-faint)", flexShrink: 0 }} />
+      {text}
+    </span>
+  );
+}
+
+export function LeaguesScreen({ leagues, meId, inGlobal, deadline }: { leagues: LeagueSummary[]; meId: string; inGlobal: boolean; deadline: { type: string; value: string } }) {
   const router = useRouter();
   const [joiningGlobal, startJoinGlobal] = useTransition();
   const [state, action, pending] = useActionState(
@@ -165,8 +175,13 @@ export function LeaguesScreen({ leagues, meId, inGlobal }: { leagues: LeagueSumm
               <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 3 }}>
                 {l.member_count} member{l.member_count === 1 ? "" : "s"}
               </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                <Meta icon="bolt" text={`${l.points_exact} pt${l.points_exact === 1 ? "" : "s"} exact · ${l.points_outcome} result`} />
+                <Meta icon="lock" text={l.submission_mode === "single" ? "One pick" : "Editable picks"} />
+                <Meta icon="clock" text={fmtDeadline(deadline.type, deadline.value)} />
+              </div>
             </div>
-            <Icon name="chevR" size={20} style={{ color: "var(--text-faint)" }} />
+            <Icon name="chevR" size={20} style={{ color: "var(--text-faint)", alignSelf: "flex-start", marginTop: 4 }} />
           </Link>
         ))}
       </div>
