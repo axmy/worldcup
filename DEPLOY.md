@@ -186,14 +186,17 @@ matches from API-Football and write their scores.
   live-day cadence.
 - **Recommended — cron-job.org (free, ~5-min reliable):**
   1. Sign up at <https://cron-job.org> → **Create cronjob**.
-  2. **URL:** `https://scorepredict.xyz/api/cron/sync-results` (same value as the
-     `SYNC_URL` GitHub secret — apex 308-redirects to `www`, so enable follow-redirects).
+  2. **URL:** `https://www.scorepredict.xyz/api/cron/sync-results` — use the **`www`**
+     host directly. The apex (`scorepredict.xyz`) 308-redirects to `www`, and HTTP clients
+     **drop the `Authorization` header on cross-host redirects**, so an apex URL +
+     follow-redirects returns 401. Hitting `www` directly avoids the redirect entirely.
   3. **Schedule:** every 5 minutes (or every minute during live match windows).
   4. **Request method:** GET. **Headers:** add `Authorization: Bearer <CRON_SECRET>`
      (the exact `CRON_SECRET` value set in Vercel env vars).
-  5. Enable **"Follow redirects"** (apex domain 308-redirects to www, like the workflow's
-     `curl -L`). Save → the job's execution history shows real cadence + the route's JSON
-     response for diagnostics.
+  5. Save → the job's execution history shows real cadence + the route's JSON response for
+     diagnostics. A working call returns `200 {"ok":true,...}`; `401 {"error":"Unauthorized."}`
+     means the secret is wrong **or** you pointed at the apex (auth header dropped on the
+     redirect — see step 2).
 - **API quota:** the route makes **no** provider call when no match is in play, so usage
   stays near zero outside match windows (fits the free tier) — running it every minute is
   safe.
