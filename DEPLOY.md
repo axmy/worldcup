@@ -186,8 +186,8 @@ matches from API-Football and write their scores.
   live-day cadence.
 - **Recommended — cron-job.org (free, ~5-min reliable):**
   1. Sign up at <https://cron-job.org> → **Create cronjob**.
-  2. **URL:** `https://<your-prod-domain>/api/cron/sync-results` (same value as the
-     `SYNC_URL` GitHub secret — the prod domain, following the apex→www redirect).
+  2. **URL:** `https://scorepredict.xyz/api/cron/sync-results` (same value as the
+     `SYNC_URL` GitHub secret — apex 308-redirects to `www`, so enable follow-redirects).
   3. **Schedule:** every 5 minutes (or every minute during live match windows).
   4. **Request method:** GET. **Headers:** add `Authorization: Bearer <CRON_SECRET>`
      (the exact `CRON_SECRET` value set in Vercel env vars).
