@@ -63,6 +63,14 @@ function CenterCell({ match, status, pred }: { match: Match; status: MatchState;
         <div className="display" style={{ fontSize: 10, letterSpacing: ".12em", color: "var(--neg)", marginTop: 4, fontWeight: 700, textTransform: "uppercase" }}>
           {match.live_status === "HT" ? "Half-time" : "Live"}
         </div>
+        {pred && (
+          <div style={{ marginTop: 7, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <div className="num" style={{ fontSize: 15, fontWeight: 700, lineHeight: 1, color: "var(--accent)", fontFamily: "var(--font-score)" }}>
+              {pred[0]}<span style={{ opacity: 0.5, margin: "0 3px" }}>–</span>{pred[1]}
+            </div>
+            <div className="display" style={{ fontSize: 8.5, letterSpacing: ".12em", color: "var(--text-faint)", fontWeight: 600, textTransform: "uppercase" }}>Your pick</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -186,12 +194,16 @@ export function MatchCard({
                 <span suppressHydrationWarning style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Kickoff {fmtKick(kickoffMs)}</span>
               )}
               {pred ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)" }}>
-                  <Icon name="lock" size={13} /> Your pick{" "}
-                  <b className="num" style={{ color: "var(--text)", fontWeight: 800 }}>
-                    {pred[0]}–{pred[1]}
-                  </b>
-                </span>
+                // While live the pick is shown under the score in the center cell,
+                // so only repeat it in the footer before kickoff to avoid duplication.
+                !isLive(match) && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-dim)" }}>
+                    <Icon name="lock" size={13} /> Your pick{" "}
+                    <b className="num" style={{ color: "var(--text)", fontWeight: 800 }}>
+                      {pred[0]}–{pred[1]}
+                    </b>
+                  </span>
+                )
               ) : (
                 <span style={{ fontSize: 12.5, color: "var(--neg)", fontWeight: 600 }}>No pick submitted</span>
               )}
