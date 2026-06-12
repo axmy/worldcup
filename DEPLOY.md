@@ -174,12 +174,29 @@ matches from API-Football and write their scores.
 - **Map fixtures first:** in Admin → Fixtures, click **Import** to pull the schedule
   (teams, kickoff times, provider ids). Results sync only touches fixtures that have a
   provider id.
-- **Vercel plan:** Hobby runs crons **once/day** only. For live-day polling use **Vercel
-  Pro** (sub-daily crons), or trigger Admin → Results → **"Sync results now"**, or point an
-  external scheduler (cron-job.org / GitHub Actions) at the route with the `CRON_SECRET`
-  bearer header.
+- **Vercel plan:** Hobby runs crons **once/day** only. For live-day polling you need an
+  external scheduler hitting the route directly. Options, fastest-to-reliable:
+  trigger Admin → Results → **"Sync results now"** manually; **Vercel Pro** (sub-daily
+  crons); GitHub Actions; or **cron-job.org** (recommended — free, reliable 1-min cadence).
+- **Why not GitHub Actions alone:** the repo ships `.github/workflows/sync-results.yml`
+  with `cron: "*/5 * * * *"`, but GitHub **heavily throttles and silently drops**
+  high-frequency scheduled workflows under load — observed real gaps of 2–4.5h between
+  runs, not 5 min. There is no YAML fix; GitHub does not honour `*/5` reliably. Keep it as
+  a *backup* trigger if you like (the route is idempotent), but don't rely on it for
+  live-day cadence.
+- **Recommended — cron-job.org (free, ~5-min reliable):**
+  1. Sign up at <https://cron-job.org> → **Create cronjob**.
+  2. **URL:** `https://<your-prod-domain>/api/cron/sync-results` (same value as the
+     `SYNC_URL` GitHub secret — the prod domain, following the apex→www redirect).
+  3. **Schedule:** every 5 minutes (or every minute during live match windows).
+  4. **Request method:** GET. **Headers:** add `Authorization: Bearer <CRON_SECRET>`
+     (the exact `CRON_SECRET` value set in Vercel env vars).
+  5. Enable **"Follow redirects"** (apex domain 308-redirects to www, like the workflow's
+     `curl -L`). Save → the job's execution history shows real cadence + the route's JSON
+     response for diagnostics.
 - **API quota:** the route makes **no** provider call when no match is in play, so usage
-  stays near zero outside match windows (fits the free tier).
+  stays near zero outside match windows (fits the free tier) — running it every minute is
+  safe.
 
 ### 3b. Region  (`vercel.json`)
 `vercel.json` pins serverless functions to a region — put them **next to the
