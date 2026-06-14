@@ -5,10 +5,14 @@
 // real data model (teams are free-text names rather than fixed codes).
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import type { Match } from "@/lib/types";
-import { flagUrl } from "@/lib/flags";
+import { flagUrl, fifaCode } from "@/lib/flags";
 
 /* ── Team helpers: derive a short code + stable color from a team name ── */
 export function teamCode(name: string) {
+  // Prefer the official FIFA 3-letter code; fall back to a name-derived guess
+  // for teams we don't have mapped (keeps this white-label-safe).
+  const fifa = fifaCode(name);
+  if (fifa) return fifa;
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length >= 2) {
     return (words[0][0] + words[1].slice(0, 2)).toUpperCase().slice(0, 3);

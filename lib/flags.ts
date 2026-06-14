@@ -95,6 +95,96 @@ const NAME_TO_CC: Record<string, string> = {
   china: "CN",
 };
 
+// Official FIFA 3-letter country codes (https://en.wikipedia.org/wiki/List_of_FIFA_country_codes).
+// These are NOT derivable from the alpha-2 code or the name (e.g. South Africa
+// is RSA, Saudi Arabia KSA, Netherlands NED), so they need an explicit table.
+// Same normalised keys/aliases as NAME_TO_CC. Unknown names fall back to a code
+// derived from the name in teamCode(), keeping this white-label-safe.
+const NAME_TO_FIFA: Record<string, string> = {
+  // ── 2026 World Cup field ──
+  mexico: "MEX",
+  "south africa": "RSA",
+  "south korea": "KOR",
+  "korea republic": "KOR",
+  "czech republic": "CZE",
+  czechia: "CZE",
+  canada: "CAN",
+  "bosnia and herzegovina": "BIH",
+  bosnia: "BIH",
+  qatar: "QAT",
+  switzerland: "SUI",
+  brazil: "BRA",
+  morocco: "MAR",
+  haiti: "HAI",
+  scotland: "SCO",
+  "united states": "USA",
+  usa: "USA",
+  "united states of america": "USA",
+  paraguay: "PAR",
+  australia: "AUS",
+  turkey: "TUR",
+  "türkiye": "TUR",
+  turkiye: "TUR",
+  germany: "GER",
+  "curaçao": "CUW",
+  curacao: "CUW",
+  "ivory coast": "CIV",
+  "côte d'ivoire": "CIV",
+  "cote d'ivoire": "CIV",
+  ecuador: "ECU",
+  netherlands: "NED",
+  japan: "JPN",
+  sweden: "SWE",
+  tunisia: "TUN",
+  belgium: "BEL",
+  egypt: "EGY",
+  iran: "IRN",
+  "new zealand": "NZL",
+  spain: "ESP",
+  "cape verde": "CPV",
+  "cabo verde": "CPV",
+  "saudi arabia": "KSA",
+  uruguay: "URU",
+  france: "FRA",
+  senegal: "SEN",
+  iraq: "IRQ",
+  norway: "NOR",
+  argentina: "ARG",
+  algeria: "ALG",
+  austria: "AUT",
+  jordan: "JOR",
+  portugal: "POR",
+  "dr congo": "COD",
+  "democratic republic of the congo": "COD",
+  "congo dr": "COD",
+  uzbekistan: "UZB",
+  colombia: "COL",
+  england: "ENG",
+  croatia: "CRO",
+  ghana: "GHA",
+  panama: "PAN",
+
+  // ── Common extras (other fixtures / friendlies an admin might add) ──
+  wales: "WAL",
+  italy: "ITA",
+  poland: "POL",
+  denmark: "DEN",
+  serbia: "SRB",
+  ukraine: "UKR",
+  nigeria: "NGA",
+  cameroon: "CMR",
+  peru: "PER",
+  chile: "CHI",
+  greece: "GRE",
+  hungary: "HUN",
+  romania: "ROU",
+  "northern ireland": "NIR",
+  "republic of ireland": "IRL",
+  ireland: "IRL",
+  russia: "RUS",
+  china: "CHN",
+};
+
 function normalize(name: string) {
   return name
     .trim()
@@ -105,6 +195,11 @@ function normalize(name: string) {
 /** ISO alpha-2 code (or GB subdivision code) for a team name, or null. */
 export function countryCode(name: string): string | null {
   return NAME_TO_CC[normalize(name)] ?? null;
+}
+
+/** Official FIFA 3-letter code for a team name, or null if unrecognised. */
+export function fifaCode(name: string): string | null {
+  return NAME_TO_FIFA[normalize(name)] ?? null;
 }
 
 // Home-nation regional-tag emoji, keyed by their flagcdn subdivision code.
