@@ -16,7 +16,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
   // RLS only returns the league if the caller is a member (or admin).
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, name, join_code, created_by, is_global, points_exact, points_outcome, submission_mode")
+    .select("id, name, join_code, created_by, is_global, points_exact, points_outcome, submission_mode, prizes")
     .eq("id", id)
     .single();
   if (!league) notFound();
@@ -59,6 +59,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
           meId={userId ?? ""}
           title={league.name}
           subtitle={`${board.length} member${board.length === 1 ? "" : "s"}`}
+          prizes={(league.prizes as string[] | null) ?? []}
           rules={{
             exact: league.points_exact,
             outcome: league.points_outcome,

@@ -52,6 +52,9 @@ export type League = {
   points_outcome: number;
   submission_mode: "single" | "multiple";
   is_global: boolean;
+  // Ordered prize list: index i is the prize for place i+1 (display-only).
+  // Optional: only loaded on the detail/manage views, not in summary lists.
+  prizes?: string[];
 };
 
 // A league plus its member count, as shown in lists.

@@ -285,6 +285,18 @@ export async function updateLeagueSettings(formData: FormData) {
   if (!name) return { error: "League name is required." };
   const rules = leagueRuleFields(formData);
 
+  // Prizes arrive as a JSON array of strings (index = place). Sanitise here too;
+  // clean_prizes() in the RPC is the authoritative trim/cap.
+  let prizes: string[] = [];
+  try {
+    const raw = JSON.parse(String(formData.get("prizes") ?? "[]"));
+    if (Array.isArray(raw)) {
+      prizes = raw.map((p) => String(p ?? "").trim().slice(0, 80)).filter(Boolean).slice(0, 10);
+    }
+  } catch {
+    /* malformed payload → no prizes */
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_league", {
     p_league_id: leagueId,
@@ -292,6 +304,7 @@ export async function updateLeagueSettings(formData: FormData) {
     p_points_exact: rules.p_points_exact ?? 3,
     p_points_outcome: rules.p_points_outcome ?? 1,
     p_submission_mode: rules.p_submission_mode ?? "multiple",
+    p_prizes: prizes,
   });
   if (error) {
     return { error: /owner/i.test(error.message) ? "Only the league owner can do that." : "Could not save settings." };

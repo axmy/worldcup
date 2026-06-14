@@ -10,6 +10,13 @@ const PLACE_COLOR: Record<number, string> = {
   3: "oklch(0.62 0.07 50)",
 };
 
+// "1st" / "2nd" / "3rd" / "4th" … for prize places.
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
 // Shared 6-column grid for the stats table (rank · player · MP · Ex · Out · Pts).
 const STAT_ROW: CSSProperties = {
   display: "grid",
@@ -41,6 +48,7 @@ export function LeaderboardScreen({
   subtitle,
   header,
   rules,
+  prizes,
   meRank,
   cappedAt,
 }: {
@@ -51,6 +59,8 @@ export function LeaderboardScreen({
   header?: ReactNode;
   // Per-league scoring + the platform deadline, shown as chips under the title.
   rules?: { exact: number; outcome: number; mode: "single" | "multiple"; deadlineType: string; deadlineValue: string };
+  // Ordered prize list (index i = place i+1), set by the league owner.
+  prizes?: string[];
   // The viewer's own standing — used to pin their row when they rank below the
   // rendered top-N (large global boards are capped for performance).
   meRank?: { rank: number; total_points: number; scored_matches: number; exact_hits: number; outcome_hits: number };
@@ -78,6 +88,30 @@ export function LeaderboardScreen({
               <Icon name={icon} size={12.5} style={{ color: "var(--text-faint)", flexShrink: 0 }} />
               {text}
             </span>
+          ))}
+        </div>
+      )}
+
+      {/* Prizes — what the top finishers are playing for, set by the owner. */}
+      {prizes && prizes.length > 0 && (
+        <div className="card-sport" style={{ overflow: "hidden", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "11px 14px", borderBottom: "1px solid var(--line-soft)" }}>
+            <Icon name="trophy" size={15} style={{ color: "var(--accent)" }} />
+            <span className="display" style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--text-faint)" }}>
+              Prizes
+            </span>
+          </div>
+          {prizes.map((prize, i) => (
+            // No player name here on purpose: ties at a place mean there's no
+            // single "winner" to show, so we only advertise the prize per place.
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 14px", borderTop: i === 0 ? "none" : "1px solid var(--line-soft)" }}>
+              <span className="display num" style={{ flexShrink: 0, width: 34, fontWeight: 800, fontSize: 14, color: i < 3 ? PLACE_COLOR[i + 1] : "var(--text-faint)" }}>
+                {ordinal(i + 1)}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {prize}
+              </span>
+            </div>
           ))}
         </div>
       )}

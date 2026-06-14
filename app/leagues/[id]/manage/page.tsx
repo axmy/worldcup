@@ -16,7 +16,7 @@ export default async function ManageLeaguePage({ params }: { params: Promise<{ i
   // RLS returns the league only to members/admins; managing requires ownership.
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, name, join_code, created_by, is_global, points_exact, points_outcome, submission_mode")
+    .select("id, name, join_code, created_by, is_global, points_exact, points_outcome, submission_mode, prizes")
     .eq("id", id)
     .single();
 
