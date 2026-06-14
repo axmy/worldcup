@@ -73,16 +73,34 @@ function liveDeadline(c: Candidate, ev: ProviderResult): string | null {
   const n = Number(c.deadline_value);
   if (!Number.isFinite(n)) return null;
   const nowMs = Date.now();
+  // Lock now — unless the deadline already passed (don't keep rewriting it).
+  const lockNow = () =>
+    new Date(c.submission_deadline).getTime() > nowMs ? new Date(nowMs).toISOString() : null;
 
   if (ev.status === "NS") return new Date(nowMs + n * 60000).toISOString();
 
-  // Paused-clock statuses (HT/Break/Pen.) have no minute but mean the first
-  // half is over — past the deadline whenever the policy is ≤ half-time.
-  const closed = ev.minute !== null ? ev.minute >= n : ev.inPlay && n <= 45;
-  if (closed) {
-    // Lock now — unless the deadline already passed (don't keep rewriting it).
-    return new Date(c.submission_deadline).getTime() > nowMs ? new Date(nowMs).toISOString() : null;
+  // Half-time policy (the default, N=45): the real first half runs *past* the
+  // 45' mark because of stoppage time and cooling/water breaks, and the feed
+  // reports that stretch as "45+2'" etc. — which parseMinute() floors to 45. So
+  // don't lock the instant the clock hits 45; wait for livescore's actual
+  // half-time whistle (HT/Break) or the second half resuming (minute ≥ 46).
+  // While first-half stoppage is running, roll the deadline forward each sync so
+  // it never lapses between runs before the whistle lands.
+  if (n === 45) {
+    if (ev.status === "HT" || ev.status === "Break") return lockNow();
+    if (ev.minute !== null) {
+      if (ev.minute >= 46) return lockNow(); // second half → past half-time
+      if (ev.minute >= 45) return new Date(nowMs + 90000).toISOString(); // 1st-half stoppage: keep open
+      return new Date(nowMs + (45 - ev.minute) * 60000).toISOString(); // running clock estimate
+    }
+    return null; // any other paused status (e.g. Pen.) with no minute — leave as is
   }
+
+  // Other minutes-after-kickoff policies (sub-half): no stoppage ambiguity, so a
+  // bare minute compare is fine. Paused statuses (no minute) mean the first half
+  // is over, which is past any ≤45 deadline.
+  const closed = ev.minute !== null ? ev.minute >= n : ev.inPlay && n <= 45;
+  if (closed) return lockNow();
   if (ev.minute === null) return null;
   return new Date(nowMs + (n - ev.minute) * 60000).toISOString();
 }
