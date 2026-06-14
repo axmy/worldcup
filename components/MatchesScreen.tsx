@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Match } from "@/lib/types";
@@ -157,6 +157,33 @@ export function MatchesScreen({
 
   const openCount = matches.filter((m) => matchStatus(m, now) === "open").length;
 
+  // Auto-scroll the All view to what's happening now on first load: the day of a
+  // live match, else today, else the next upcoming match's day — so users don't
+  // land on the tournament's opening day and have to scroll past finished weeks.
+  const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const didScroll = useRef(false);
+  const targetDay = useMemo(() => {
+    const live = matches.find(isLive);
+    if (live) return dayKey(new Date(live.kickoff_time).getTime());
+    const today = dayKey(now);
+    if (matches.some((m) => dayKey(new Date(m.kickoff_time).getTime()) === today)) return today;
+    const next = matches
+      .filter((m) => new Date(m.kickoff_time).getTime() > now)
+      .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())[0];
+    return next ? dayKey(new Date(next.kickoff_time).getTime()) : null;
+  }, [matches, now]);
+  useEffect(() => {
+    // Once, on mount (default filter is "all"). router.refresh() keeps this
+    // mounted, so it won't yank the user back during live polling.
+    if (didScroll.current || filter !== "all" || !targetDay) return;
+    didScroll.current = true;
+    const idx = groups.findIndex(([day]) => day === targetDay);
+    if (idx <= 0) return; // target is the first group — already at the top
+    const el = dayRefs.current[targetDay];
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: "start", behavior: "auto" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // While any match is in its play window, re-pull fresh data every minute so
   // live scores and the half-time lock (written by the results cron) show up
   // without a manual reload.
@@ -214,7 +241,13 @@ export function MatchesScreen({
 
       {groups.length === 0 && <Empty icon="cal" text="No matches in this view." />}
       {groups.map(([day, ms]) => (
-        <div key={day} style={{ marginBottom: 24 }}>
+        <div
+          key={day}
+          ref={(el) => {
+            dayRefs.current[day] = el;
+          }}
+          style={{ marginBottom: 24, scrollMarginTop: 12 }}
+        >
           <SectionLabel>{fmtDay(new Date(day).getTime())}</SectionLabel>
           <div className="wc-grid stagger">
             {ms.map((m) => (
