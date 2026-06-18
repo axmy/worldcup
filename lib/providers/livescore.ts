@@ -29,7 +29,7 @@ function parseMinute(status: string): number | null {
 }
 
 function competition() {
-  return (process.env.LIVESCORE_COMPETITION || "World Cup 2026").toLowerCase();
+  return (process.env.LIVESCORE_COMPETITION || "World Cup").toLowerCase();
 }
 
 export type ProviderFixture = {
