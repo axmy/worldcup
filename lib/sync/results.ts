@@ -54,8 +54,23 @@ function utcDateKey(iso: string): string {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+// Order-insensitive fixture key: a match is the same game regardless of which
+// side the feed happens to call "home" (our seed and the feed sometimes disagree
+// on home/away). Two teams can't meet twice on one UTC date, so the two sorted
+// normalized names + date uniquely identify the fixture.
 function pairKey(home: string, away: string, dateKey: string): string {
-  return `${normalize(home)}|${normalize(away)}|${dateKey}`;
+  return `${[normalize(home), normalize(away)].sort().join("|")}|${dateKey}`;
+}
+
+// The feed may list our home team as its away side. Orient the event's scores to
+// the candidate's own home/away by team name, not by feed position — otherwise a
+// reversed fixture would record the score backwards. Falls back to feed order if
+// names don't line up either way (e.g. an id-matched event whose names drifted).
+function orient(c: Candidate, ev: ProviderResult): { home: number | null; away: number | null } {
+  const reversed =
+    normalize(ev.home_team) === normalize(c.away_team) &&
+    normalize(ev.away_team) === normalize(c.home_team);
+  return reversed ? { home: ev.away, away: ev.home } : { home: ev.home, away: ev.away };
 }
 
 // Re-anchor a 'minutes_after_kickoff' deadline to the real match clock. The
@@ -153,15 +168,16 @@ export async function syncResults(): Promise<SyncSummary> {
       byPair.get(pairKey(c.home_team, c.away_team, utcDateKey(c.kickoff_time)));
     if (!ev) continue;
 
+    const score = orient(c, ev);
     const patch: Record<string, unknown> = {};
-    if (ev.final && ev.home != null && ev.away != null) {
-      patch.home_score = ev.home; // fires the scoring trigger
-      patch.away_score = ev.away;
+    if (ev.final && score.home != null && score.away != null) {
+      patch.home_score = score.home; // fires the scoring trigger
+      patch.away_score = score.away;
       patch.live_status = ev.status;
       updated++;
     } else if (ev.inPlay) {
-      patch.live_home_score = ev.home;
-      patch.live_away_score = ev.away;
+      patch.live_home_score = score.home;
+      patch.live_away_score = score.away;
       patch.live_status = ev.status;
       liveUpdated++;
     }
