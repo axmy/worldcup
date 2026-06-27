@@ -4,11 +4,16 @@ export type DeadlineType =
   | "fixed_time_of_day"
   | "fixed_datetime";
 
+export type Stage = "group" | "r32" | "r16" | "qf" | "sf" | "third" | "final";
+
 export type Match = {
   id: string;
   home_team: string;
   away_team: string;
   kickoff_time: string;
+  // Tournament stage: 'group' or a knockout round. Lets the app tell knockout
+  // fixtures apart without parsing team names.
+  stage: Stage;
   deadline_type: DeadlineType;
   deadline_value: string;
   // When submissions open. Null = open immediately (legacy fixtures).

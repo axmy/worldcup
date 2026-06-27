@@ -32,11 +32,32 @@ function competition() {
   return (process.env.LIVESCORE_COMPETITION || "World Cup").toLowerCase();
 }
 
+// Tournament round, derived from the provider's stage name (Snm). "group" and
+// "other" exist so the knockout sync can ignore anything that isn't a knockout.
+export type Round = "r32" | "r16" | "qf" | "sf" | "third" | "final" | "group" | "other";
+
+// Classify a Livescore stage name into a round. Livescore uses short codes
+// ("R32", "R16", "QF", "SF", "Final", "Third Place Play-Off"); long forms are
+// also matched for safety. Order matters: "semi"/"quarter" and "third place"
+// are checked before the plain "final" so they aren't swallowed by it.
+export function classifyRound(snm: string): Round {
+  const s = snm.toLowerCase();
+  if (/\br32\b|round of 32|last 32|1\/16/.test(s)) return "r32";
+  if (/\br16\b|round of 16|last 16|1\/8/.test(s)) return "r16";
+  if (/\bqf\b|quarter|1\/4/.test(s)) return "qf";
+  if (/\bsf\b|semi|1\/2/.test(s)) return "sf";
+  if (/third|3rd|play[-\s]?off/.test(s)) return "third";
+  if (/final/.test(s)) return "final";
+  if (/group/.test(s)) return "group";
+  return "other";
+}
+
 export type ProviderFixture = {
   external_ref: string;
   home_team: string;
   away_team: string;
   kickoff_time: string; // ISO
+  round: Round;
 };
 
 export type ProviderResult = {
@@ -44,6 +65,7 @@ export type ProviderResult = {
   home_team: string;
   away_team: string;
   kickoff_time: string; // ISO
+  round: Round;
   status: string;
   final: boolean;
   // Kicked off and not yet finished (running clock or a paused-clock status).
@@ -96,6 +118,7 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
   const out: ProviderResult[] = [];
   for (const stage of json.Stages ?? []) {
     if (!String(stage.Cnm ?? "").toLowerCase().includes(comp)) continue;
+    const round = classifyRound(stage.Snm ?? "");
     for (const e of stage.Events ?? []) {
       const home = e.T1?.[0]?.Nm;
       const away = e.T2?.[0]?.Nm;
@@ -107,6 +130,7 @@ async function fetchDate(yyyymmdd: string): Promise<ProviderResult[]> {
         home_team: home,
         away_team: away,
         kickoff_time: esdToIso(e.Esd),
+        round,
         status,
         final: FINAL_STATUSES.has(status),
         inPlay: !FINAL_STATUSES.has(status) && (minute !== null || PAUSED_STATUSES.has(status)),
@@ -155,6 +179,7 @@ export async function fetchSchedule(): Promise<ProviderFixture[]> {
       home_team: r.home_team,
       away_team: r.away_team,
       kickoff_time: r.kickoff_time,
+      round: r.round,
     });
   }
   return [...byId.values()];

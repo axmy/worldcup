@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { fetchSchedule } from "@/lib/providers/livescore";
+import { fixtureKey } from "@/lib/flags";
 import { syncResults } from "@/lib/sync/results";
 
 // The app's public origin for building redirect URLs (OAuth callback, password
@@ -541,39 +542,173 @@ export async function importFixtures() {
     return { error: e instanceof Error ? e.message : "Could not reach the data provider." };
   }
 
-  const { data: existingRows } = await supabase
+  // Reconcile against the EXISTING rows only — never insert. Fixtures are
+  // pre-seeded by migrations, so an import just refreshes teams/kickoffs and
+  // stamps the provider ref onto the row that already represents each match.
+  // Because nothing is inserted, importing is idempotent: clicking it again
+  // re-matches by ref and can't create duplicates or re-add a played match.
+  const { data: rows } = await supabase
     .from("matches")
-    .select("id, external_ref")
-    .eq("provider", "livescore")
-    .not("external_ref", "is", null);
-  const existing = new Map(
-    ((existingRows as { id: string; external_ref: string }[] | null) ?? []).map((r) => [r.external_ref, r.id]),
-  );
+    .select("id, home_team, away_team, kickoff_time, external_ref, provider, home_score");
+  type Row = { id: string; home_team: string; away_team: string; kickoff_time: string; external_ref: string | null; provider: string; home_score: number | null };
+  const all = (rows as Row[] | null) ?? [];
 
-  let inserted = 0;
-  let updated = 0;
+  const byRef = new Map<string, Row>();
+  const byKey = new Map<string, Row>();
+  for (const r of all) {
+    if (r.external_ref) byRef.set(r.external_ref, r);
+    const key = fixtureKey(r.home_team, r.away_team, r.kickoff_time);
+    // If a match somehow exists twice, prefer the canonical (seeded, non-
+    // livescore) row so we reconcile into it rather than a stray copy.
+    if (!byKey.has(key) || r.provider !== "livescore") byKey.set(key, r);
+  }
+
+  // Ongoing tournament: never touch a match that has already kicked off or has a
+  // result. Import only ever adjusts still-upcoming fixtures.
+  const nowMs = Date.now();
+  const isLocked = (r: Row) => r.home_score !== null || new Date(r.kickoff_time).getTime() <= nowMs;
+
+  const syncedAt = new Date().toISOString();
+  let updated = 0; // matched by provider ref (already claimed)
+  let claimed = 0; // matched a seeded row by matchup, stamped the ref
+  let skipped = 0; // no existing row to reconcile into
+  let knockout = 0; // knockout fixtures, left to "Sync knockout teams"
+  let locked = 0; // past / in-play matches, deliberately left untouched
   for (const f of fixtures) {
-    const id = existing.get(f.external_ref);
-    if (id) {
-      // Updating kickoff_time recomputes submission_deadline via the trigger,
-      // preserving the fixture's existing deadline rule.
+    // Knockouts live in dedicated placeholder rows (R32-1A …) that this matchup
+    // reconcile can't key onto, so importing them here would duplicate. They're
+    // handled by syncKnockoutFixtures — skip them so import only ever touches the
+    // group stage.
+    if (f.round !== "group" && f.round !== "other") {
+      knockout++;
+      continue;
+    }
+    // Updating kickoff_time recomputes submission_deadline via the DB trigger.
+    const refRow = byRef.get(f.external_ref);
+    if (refRow) {
+      if (isLocked(refRow)) { locked++; continue; }
       const { error } = await supabase
         .from("matches")
-        .update({ home_team: f.home_team, away_team: f.away_team, kickoff_time: f.kickoff_time })
-        .eq("id", id);
+        .update({ home_team: f.home_team, away_team: f.away_team, kickoff_time: f.kickoff_time, stage: "group", synced_at: syncedAt })
+        .eq("id", refRow.id);
       if (!error) updated++;
-    } else {
-      const { error } = await supabase.from("matches").insert({
-        home_team: f.home_team,
-        away_team: f.away_team,
-        kickoff_time: f.kickoff_time,
-        deadline_type: "minutes_before_kickoff",
-        deadline_value: "0",
-        submission_deadline: f.kickoff_time, // placeholder; recomputed by trigger
-        external_ref: f.external_ref,
-        provider: "livescore",
-      });
-      if (!error) inserted++;
+      continue;
+    }
+    const keyRow = byKey.get(fixtureKey(f.home_team, f.away_team, f.kickoff_time));
+    if (keyRow) {
+      if (isLocked(keyRow)) { locked++; continue; }
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          home_team: f.home_team,
+          away_team: f.away_team,
+          kickoff_time: f.kickoff_time,
+          stage: "group",
+          external_ref: f.external_ref,
+          provider: "livescore",
+          synced_at: syncedAt,
+        })
+        .eq("id", keyRow.id);
+      if (!error) {
+        claimed++;
+        byRef.set(f.external_ref, keyRow); // guard against the feed listing it twice
+      }
+      continue;
+    }
+    skipped++;
+  }
+
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true, updated, claimed, skipped, knockout, locked };
+}
+
+// One-off cleanup for duplicate fixtures left by an earlier insert-style import
+// (the same match stored twice — a seeded row plus an imported copy). Groups
+// rows by matchup, keeps the canonical one (most predictions, then the seeded
+// non-livescore row, then the oldest), and deletes the empty extras. A duplicate
+// that already has predictions is never deleted — it's reported as a conflict so
+// the admin can merge it by hand. Safe to run repeatedly.
+export async function removeDuplicateFixtures() {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+
+  const { data: rows } = await supabase
+    .from("matches")
+    .select("id, home_team, away_team, kickoff_time, provider, stage, created_at, home_score");
+  type Row = { id: string; home_team: string; away_team: string; kickoff_time: string; provider: string; stage: string; created_at: string; home_score: number | null };
+  const all = (rows as Row[] | null) ?? [];
+
+  const { data: preds } = await supabase.from("predictions").select("match_id");
+  const predCount = new Map<string, number>();
+  for (const p of (preds as { match_id: string }[] | null) ?? []) {
+    predCount.set(p.match_id, (predCount.get(p.match_id) ?? 0) + 1);
+  }
+
+  // Ongoing tournament: a played match (has a result) is never deleted, so past
+  // results are always preserved. A row is also kept if it holds predictions.
+  const isProtected = (r: Row) => r.home_score !== null || (predCount.get(r.id) ?? 0) > 0;
+
+  const deleted = new Set<string>();
+  let removed = 0;
+  let conflicts = 0;
+
+  // Step 1 — exact duplicates by matchup key (bridges provider naming and
+  // home/away order). Covers group dups and any knockout dup where both copies
+  // already carry real team names. Keep the canonical row: the one with a result,
+  // then most predictions, then the seeded (non-livescore) row, then the oldest.
+  const groups = new Map<string, Row[]>();
+  for (const r of all) {
+    const k = fixtureKey(r.home_team, r.away_team, r.kickoff_time);
+    (groups.get(k) ?? groups.set(k, []).get(k)!).push(r);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const ranked = group.slice().sort((a, b) => {
+      const scored = (b.home_score !== null ? 1 : 0) - (a.home_score !== null ? 1 : 0);
+      if (scored) return scored;
+      const byPreds = (predCount.get(b.id) ?? 0) - (predCount.get(a.id) ?? 0);
+      if (byPreds) return byPreds;
+      const seeded = (a.provider !== "livescore" ? 0 : 1) - (b.provider !== "livescore" ? 0 : 1);
+      if (seeded) return seeded;
+      return a.created_at.localeCompare(b.created_at);
+    });
+    for (const extra of ranked.slice(1)) {
+      if (isProtected(extra)) {
+        conflicts++; // played or has predictions — leave it for manual merge
+        continue;
+      }
+      const { error } = await supabase.from("matches").delete().eq("id", extra.id);
+      if (!error) {
+        deleted.add(extra.id);
+        removed++;
+      }
+    }
+  }
+
+  // Step 2 — knockout fixtures wrongly imported as standalone rows. The canonical
+  // knockout rows are the placeholders (R32-1A …) that "Sync knockout teams"
+  // fills. A leftover provider row for a knockout match has a real matchup (so it
+  // doesn't key to any seeded GROUP row) and isn't a placeholder. Only act when
+  // every placeholder is still present — i.e. no slot has been claimed yet — so a
+  // legitimately synced knockout row is never mistaken for an import.
+  const live = all.filter((r) => !deleted.has(r.id));
+  const placeholdersPresent = live.filter((r) => isPlaceholderName(r.home_team)).length;
+  const seededGroupKeys = new Set(
+    live.filter((r) => r.stage === "group" && r.provider !== "livescore").map((r) => fixtureKey(r.home_team, r.away_team, r.kickoff_time)),
+  );
+  if (placeholdersPresent === KNOCKOUT_TOTAL) {
+    for (const r of live) {
+      if (r.provider !== "livescore" || isPlaceholderName(r.home_team)) continue;
+      if (seededGroupKeys.has(fixtureKey(r.home_team, r.away_team, r.kickoff_time))) continue;
+      if (isProtected(r)) {
+        conflicts++;
+        continue;
+      }
+      const { error } = await supabase.from("matches").delete().eq("id", r.id);
+      if (!error) removed++;
     }
   }
 
@@ -581,7 +716,132 @@ export async function importFixtures() {
   revalidatePath("/admin");
   revalidatePath("/matches");
   revalidatePath("/picks");
-  return { ok: true, inserted, updated };
+  return { ok: true as const, removed, conflicts };
+}
+
+// Fill the knockout placeholder rows (seeded by migration 0024 as 'R32-1A' v
+// 'R32-1B', …) with the real teams + kickoff times as the provider resolves the
+// bracket. Unlike importFixtures this NEVER inserts or touches group-stage
+// fixtures — it only claims/updates the knockout placeholders, so re-running it
+// can't bring back the already-played group matches.
+//
+// Matching: a placeholder is "claimed" the first time we slot a provider fixture
+// into it (stamping external_ref); subsequent syncs match that row by
+// external_ref. Within a round, fresh provider fixtures fill the remaining
+// placeholders in kickoff order — the slot label is internal, so which empty
+// slot a match lands in doesn't matter: teams, kickoff and external_ref are
+// written as one unit and results later map back by external_ref.
+const KNOCKOUT_PREFIX = {
+  r32: "R32-",
+  r16: "R16-",
+  qf: "QF-",
+  sf: "SF-",
+  third: "Third-",
+  final: "Final-",
+} as const;
+type KnockoutRound = keyof typeof KNOCKOUT_PREFIX;
+
+// Bracket size per round → the full set of knockout placeholder rows (32). Used
+// to tell whether any knockout slot has been claimed yet.
+const KNOCKOUT_SLOTS: Record<KnockoutRound, number> = { r32: 16, r16: 8, qf: 4, sf: 2, third: 1, final: 1 };
+const KNOCKOUT_TOTAL = Object.values(KNOCKOUT_SLOTS).reduce((a, b) => a + b, 0);
+const isPlaceholderName = (name: string) => Object.values(KNOCKOUT_PREFIX).some((p) => name.startsWith(p));
+
+export async function syncKnockoutFixtures() {
+  const { supabase, error: authErr } = await requireAdmin();
+  if (authErr) return { error: authErr };
+
+  let fixtures;
+  try {
+    fixtures = await fetchSchedule();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not reach the data provider." };
+  }
+
+  // Only knockout fixtures that have a placeholder round we manage.
+  const byRound = new Map<KnockoutRound, typeof fixtures>();
+  for (const f of fixtures) {
+    if (f.round in KNOCKOUT_PREFIX) {
+      const r = f.round as KnockoutRound;
+      (byRound.get(r) ?? byRound.set(r, []).get(r)!).push(f);
+    }
+  }
+  if (byRound.size === 0) return { ok: true as const, rounds: [], note: "No knockout fixtures available from the provider yet." };
+
+  // Load the unclaimed placeholder rows for every round in one query.
+  // In a PostgREST .or() filter string the LIKE wildcard is '*', not SQL '%'.
+  const likeFilters = Object.values(KNOCKOUT_PREFIX).map((p) => `home_team.like.${p}*`).join(",");
+  const { data: placeholderRows } = await supabase
+    .from("matches")
+    .select("id, home_team, kickoff_time")
+    .or(likeFilters);
+  const placeholders = (placeholderRows as { id: string; home_team: string; kickoff_time: string }[] | null) ?? [];
+
+  // Rows already claimed by one of these provider fixtures (match by ref).
+  // home_score lets us leave a knockout match alone once it has been played.
+  const allRefs = [...byRound.values()].flat().map((f) => f.external_ref);
+  const { data: claimedRows } = await supabase
+    .from("matches")
+    .select("id, external_ref, home_score")
+    .in("external_ref", allRefs.length ? allRefs : ["__none__"]);
+  const claimedByRef = new Map(
+    ((claimedRows as { id: string; external_ref: string; home_score: number | null }[] | null) ?? []).map((r) => [r.external_ref, r]),
+  );
+
+  const syncedAt = new Date().toISOString();
+  const rounds: { round: KnockoutRound; claimed: number; updated: number; waiting: number }[] = [];
+
+  for (const round of Object.keys(KNOCKOUT_PREFIX) as KnockoutRound[]) {
+    const provFix = (byRound.get(round) ?? []).slice().sort((a, b) => a.kickoff_time.localeCompare(b.kickoff_time));
+    if (provFix.length === 0) continue;
+    const slots = placeholders
+      .filter((p) => p.home_team.startsWith(KNOCKOUT_PREFIX[round]))
+      .sort((a, b) => a.kickoff_time.localeCompare(b.kickoff_time));
+
+    let claimed = 0;
+    let updated = 0;
+    const toClaim: typeof provFix = [];
+    for (const f of provFix) {
+      const existing = claimedByRef.get(f.external_ref);
+      if (existing) {
+        // Already played — leave the result and its fixture untouched.
+        if (existing.home_score !== null) continue;
+        const { error } = await supabase
+          .from("matches")
+          .update({ home_team: f.home_team, away_team: f.away_team, kickoff_time: f.kickoff_time, stage: round, synced_at: syncedAt })
+          .eq("id", existing.id);
+        if (!error) updated++;
+      } else {
+        toClaim.push(f);
+      }
+    }
+    for (let i = 0; i < toClaim.length && i < slots.length; i++) {
+      const f = toClaim[i];
+      // Updating kickoff_time recomputes submission_deadline via the trigger;
+      // clearing submission_open opens the pick window now that teams are known.
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          home_team: f.home_team,
+          away_team: f.away_team,
+          kickoff_time: f.kickoff_time,
+          stage: round,
+          submission_open: null,
+          external_ref: f.external_ref,
+          provider: "livescore",
+          synced_at: syncedAt,
+        })
+        .eq("id", slots[i].id);
+      if (!error) claimed++;
+    }
+    rounds.push({ round, claimed, updated, waiting: Math.max(0, slots.length - claimed) });
+  }
+
+  updateTag("matches");
+  revalidatePath("/admin");
+  revalidatePath("/matches");
+  revalidatePath("/picks");
+  return { ok: true as const, rounds };
 }
 
 // Re-seed the built-in 72 WC2026 fixtures (no API needed). Only inserts when the

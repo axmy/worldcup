@@ -202,6 +202,26 @@ export function fifaCode(name: string): string | null {
   return NAME_TO_FIFA[normalize(name)] ?? null;
 }
 
+// Canonical identity for a team name: the FIFA code when known, else the
+// normalised name. Lets two spellings of the same side ("USA" / "United
+// States", "Czechia" / "Czech Republic") collapse to one key.
+function teamKey(name: string): string {
+  return fifaCode(name) ?? normalize(name);
+}
+
+/**
+ * Stable key identifying a fixture independent of provider naming and home/away
+ * order: the two teams' canonical keys (sorted) plus the kickoff calendar day.
+ * Used to reconcile imported fixtures against already-seeded rows so the same
+ * match is never stored twice. Placeholder knockout rows (e.g. "R32-1A") have no
+ * FIFA code, so they key off their literal label and never collide with a real
+ * matchup.
+ */
+export function fixtureKey(home: string, away: string, kickoffIso: string): string {
+  const day = kickoffIso.slice(0, 10); // YYYY-MM-DD (UTC)
+  return [teamKey(home), teamKey(away)].sort().join("~") + "@" + day;
+}
+
 // Home-nation regional-tag emoji, keyed by their flagcdn subdivision code.
 const SUBDIVISION_EMOJI: Record<string, string> = {
   "gb-eng": "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}",

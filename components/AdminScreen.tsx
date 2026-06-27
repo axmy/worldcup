@@ -3,7 +3,7 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { LeaderboardRow, LeagueSummary, Match } from "@/lib/types";
-import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, deleteLeague, importFixtures, syncResultsNow, resetData, seedFixtures, clearScores, clearPredictions, removeLeagues, removePlayers } from "@/app/actions";
+import { createMatch, updateMatch, updateResult, deleteMatch, updateSettings, deleteLeague, importFixtures, syncKnockoutFixtures, removeDuplicateFixtures, syncResultsNow, resetData, seedFixtures, clearScores, clearPredictions, removeLeagues, removePlayers } from "@/app/actions";
 import {
   Avatar,
   Countdown,
@@ -41,6 +41,15 @@ function syncFlash(res: { updated: number; liveUpdated: number }): string {
   if (res.updated > 0) parts.push(`${res.updated} final${res.updated === 1 ? "" : "s"}`);
   if (res.liveUpdated > 0) parts.push(`${res.liveUpdated} live`);
   return parts.length > 0 ? `Synced ${parts.join(" · ")}` : "No matches in play or awaiting results";
+}
+
+const KNOCKOUT_LABEL: Record<string, string> = { r32: "R32", r16: "R16", qf: "QF", sf: "SF", third: "3rd", final: "Final" };
+function knockoutFlash(res: { rounds?: { round: string; claimed: number; updated: number; waiting: number }[]; note?: string }): string {
+  if (res.note) return res.note;
+  const active = (res.rounds ?? []).filter((r) => r.claimed || r.updated);
+  if (active.length === 0) return "No new knockout teams to sync yet.";
+  const parts = active.map((r) => `${KNOCKOUT_LABEL[r.round] ?? r.round} ${r.claimed + r.updated} set${r.waiting ? `, ${r.waiting} waiting` : ""}`);
+  return `Synced ${parts.join(" · ")}`;
 }
 
 // Medium/deep hues chosen to pair with white button text (--accent-ink: #fff).
@@ -155,7 +164,26 @@ function Fixtures({ matches, now, onNew, onEdit, onDeleted, onFlash }: { matches
     startTransition(async () => {
       const res = await importFixtures();
       if (res && "error" in res && res.error) onFlash(res.error);
-      else if (res && "ok" in res) onFlash(`Imported ${res.inserted} new, updated ${res.updated} fixtures`);
+      else if (res && "ok" in res) onFlash(`Imported · ${res.updated} refreshed, ${res.claimed} linked${res.skipped ? `, ${res.skipped} not seeded` : ""}${res.locked ? `, ${res.locked} past kept` : ""}`);
+      router.refresh();
+    });
+  }
+
+  function syncKnockouts() {
+    startTransition(async () => {
+      const res = await syncKnockoutFixtures();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(knockoutFlash(res));
+      router.refresh();
+    });
+  }
+
+  function removeDuplicates() {
+    if (!window.confirm("Remove duplicate fixtures? This deletes redundant copies that have no predictions; copies with predictions are kept for manual review.")) return;
+    startTransition(async () => {
+      const res = await removeDuplicateFixtures();
+      if (res && "error" in res && res.error) onFlash(res.error);
+      else if (res && "ok" in res) onFlash(res.removed === 0 && res.conflicts === 0 ? "No duplicate fixtures found" : `Removed ${res.removed} duplicate${res.removed === 1 ? "" : "s"}${res.conflicts ? ` · ${res.conflicts} kept (have picks)` : ""}`);
       router.refresh();
     });
   }
@@ -168,6 +196,14 @@ function Fixtures({ matches, now, onNew, onEdit, onDeleted, onFlash }: { matches
         </button>
         <button className="btn-ghost tap" onClick={importNow} disabled={isPending} title="Import the schedule from Livescore" style={{ padding: "0 16px", borderRadius: 13, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
           <Icon name="cal" size={16} /> {isPending ? "Importing…" : "Import"}
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className="btn-ghost tap" onClick={syncKnockouts} disabled={isPending} title="Fill Round of 32 / 16 etc. with the real teams as the bracket is decided — never re-imports group matches" style={{ flex: 1, padding: "11px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, color: "var(--text-dim)" }}>
+          <Icon name="bolt" size={16} stroke={2.4} /> {isPending ? "Syncing…" : "Sync knockout teams"}
+        </button>
+        <button className="btn-ghost tap" onClick={removeDuplicates} disabled={isPending} title="Delete duplicate fixture rows left by an earlier import (keeps copies that have predictions)" style={{ padding: "0 14px", borderRadius: 12, display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+          <Icon name="trash" size={15} /> Dedupe
         </button>
       </div>
       {matches.length === 0 && <Empty icon="cal" text="No fixtures yet." />}
@@ -185,7 +221,14 @@ function Fixtures({ matches, now, onNew, onEdit, onDeleted, onFlash }: { matches
                   </span>
                   <Crest name={m.away_team} size={32} />
                 </div>
-                <StatusPill status={status} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  {m.stage && m.stage !== "group" && (
+                    <span className="display" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: "3px 7px", borderRadius: 7, background: "color-mix(in oklab, var(--accent) 18%, transparent)", color: "var(--accent)" }}>
+                      {KNOCKOUT_LABEL[m.stage] ?? m.stage.toUpperCase()}
+                    </span>
+                  )}
+                  <StatusPill status={status} />
+                </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--text-faint)" }}>
                 <span suppressHydrationWarning style={{ minWidth: 0, lineHeight: 1.5 }}>
@@ -611,7 +654,7 @@ function Ops({ onFlash }: { onFlash: (msg: string) => void }) {
     startTransition(async () => {
       const res = await importFixtures();
       if (res && "error" in res && res.error) onFlash(res.error);
-      else if (res && "ok" in res) onFlash(`Imported ${res.inserted} new, updated ${res.updated} fixtures`);
+      else if (res && "ok" in res) onFlash(`Imported · ${res.updated} refreshed, ${res.claimed} linked${res.skipped ? `, ${res.skipped} not seeded` : ""}${res.locked ? `, ${res.locked} past kept` : ""}`);
       router.refresh();
     });
   }
